@@ -9,6 +9,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import axiosInstance from './AxiosInstance';
 import PublicNavBar from './PublicNavBar';
+import Toast from './Toast';
 
 const Login = () => {
    const navigate = useNavigate()
@@ -20,6 +21,15 @@ const Login = () => {
    const [forgotEmail, setForgotEmail] = useState('');
    const [resetToken, setResetToken] = useState('');
    const [newPassword, setNewPassword] = useState('');
+   const [toast, setToast] = useState({ message: '', type: 'info' });
+
+   const showToast = (message, type = 'info') => {
+      setToast({ message, type });
+   };
+
+   const closeToast = () => {
+      setToast({ message: '', type: 'info' });
+   };
 
    const handleChange = (e) => {
       const { name, value } = e.target;
@@ -30,12 +40,12 @@ const Login = () => {
       e.preventDefault();
 
       if (!data?.email || !data?.password) {
-         return alert("Please fill all fields");
+         return showToast("Please fill all fields", "error");
       } else {
          axiosInstance.post('/api/user/login', data)
             .then((res) => {
                if (res.data.success) {
-                  alert(res.data.message)
+                  showToast(res.data.message, "success");
 
                   localStorage.setItem("token", res.data.token);
                   localStorage.setItem("user", JSON.stringify(res.data.userData));
@@ -44,12 +54,12 @@ const Login = () => {
                      window.location.reload()
                   }, 1000)
                } else {
-                  alert(res.data.message)
+                  showToast(res.data.message, "error");
                }
             })
             .catch((err) => {
                if (err.response && err.response.status === 401) {
-                  alert("User doesn't exist");
+                  showToast("User doesn't exist", "error");
                }
                navigate("/login");
             });
@@ -58,22 +68,22 @@ const Login = () => {
 
    const handleForgotSubmit = (e) => {
       e.preventDefault();
-      if (!forgotEmail) return alert("Please enter email");
+      if (!forgotEmail) return showToast("Please enter email", "error");
       axiosInstance.post('/api/user/forgot-password', { email: forgotEmail })
          .then((res) => {
-            alert(res.data.message);
+            showToast(res.data.message, "success");
             setViewMode('reset');
          })
          .catch((err) => {
             console.log(err);
-            alert("Error sending reset email");
+            showToast("Error sending reset email", "error");
          });
    };
 
    const handleResetSubmit = (e) => {
       e.preventDefault();
       if (!forgotEmail || !resetToken || !newPassword) {
-         return alert("Please fill all fields");
+         return showToast("Please fill all fields", "error");
       }
       axiosInstance.post('/api/user/reset-password', {
          email: forgotEmail,
@@ -82,20 +92,21 @@ const Login = () => {
       })
          .then((res) => {
             if (res.data.success) {
-               alert(res.data.message);
+               showToast(res.data.message, "success");
                setViewMode('login');
             } else {
-               alert(res.data.message || "Failed to reset password");
+               showToast(res.data.message || "Failed to reset password", "error");
             }
          })
          .catch((err) => {
             console.log(err);
-            alert("Reset failed. Please verify code and password requirements.");
+            showToast("Reset failed. Please verify code and password requirements.", "error");
          });
    };
 
    return (
       <>
+         <Toast message={toast.message} type={toast.type} onClose={closeToast} />
 
          <PublicNavBar />
 
@@ -239,6 +250,3 @@ const Login = () => {
 }
 
 export default Login
-
-
-
