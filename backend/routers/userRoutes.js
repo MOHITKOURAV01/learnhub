@@ -8,7 +8,6 @@ const {
   loginController,
   postCourseController,
   getAllCoursesUserController,
-  deleteCourseController,
   getAllCoursesController,
   enrolledCourseController,
   sendCourseContentController,
@@ -20,6 +19,9 @@ const {
 } = require("../controllers/userControllers");
 
 const checkRole = require("../middlewares/roleMiddleware");
+const {
+  deleteCourseController,
+} = require("../controllers/courseDeletionController");
 
 const router = express.Router();
 
