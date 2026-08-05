@@ -112,6 +112,11 @@
   background: transparent;
 }
 
+.activity-filter-panel select option {
+  color: #17201d;
+  background: #fffdf8;
+}
+
 .activity-filter-actions {
   grid-column: 1 / -1;
   display: flex;
@@ -402,4 +407,52 @@
   .activity-skeleton-row {
     animation: none;
   }
+}
+
+body.dark-mode .activity-log-page {
+  --activity-ink: #eae6df;
+  --activity-muted: #a8a29a;
+  --activity-paper: #1a1a1a;
+  --activity-surface: #232323;
+  --activity-line: rgba(234, 230, 223, 0.15);
+  --activity-coral: #ff8a70;
+  --activity-blue: #5b7fe0;
+  --activity-green: #2fbf8f;
+}
+
+body.dark-mode .activity-refresh-button,
+body.dark-mode .activity-primary-button {
+  color: #1a1a1a;
+}
+
+body.dark-mode .activity-error-state,
+body.dark-mode .activity-empty-state {
+  background: rgba(35, 35, 35, 0.72);
+}
+
+body.dark-mode .activity-error-state {
+  border-color: rgba(255, 107, 107, 0.35);
+  color: #ff8a80;
+  background: #3a1f1f;
+}
+
+body.dark-mode .activity-table th {
+  background: #2a2a26;
+}
+
+body.dark-mode .activity-table tbody tr:hover {
+  background: rgba(91, 127, 224, 0.08);
+}
+
+body.dark-mode .activity-role-badge {
+  background: rgba(91, 127, 224, 0.15);
+}
+
+body.dark-mode .activity-action-login {
+  background: rgba(47, 191, 143, 0.15);
+}
+
+body.dark-mode .activity-action-logout {
+  color: #ff9a6a;
+  background: rgba(255, 138, 112, 0.15);
 }

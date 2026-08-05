@@ -103,32 +103,31 @@ const AdminHome = () => {
     <main>
       <nav
         aria-label="Admin dashboard sections"
+        className="admin-tabs-nav"
         style={{
           display: "flex",
           gap: "8px",
           padding: "16px",
-          borderBottom: "1px solid rgba(0,0,0,.12)",
-          background: "#fff",
           overflowX: "auto",
         }}
       >
         <Button
+          className={`admin-tab-btn${activeSection === "users" ? " admin-tab-btn-active" : ""}`}
           variant={activeSection === "users" ? "contained" : "outlined"}
-          color="inherit"
           onClick={() => setActiveSection("users")}
         >
           Users
         </Button>
         <Button
+          className={`admin-tab-btn${activeSection === "payments" ? " admin-tab-btn-active" : ""}`}
           variant={activeSection === "payments" ? "contained" : "outlined"}
-          color="inherit"
           onClick={() => setActiveSection("payments")}
         >
           Payments
         </Button>
         <Button
+          className={`admin-tab-btn${activeSection === "activity-logs" ? " admin-tab-btn-active" : ""}`}
           variant={activeSection === "activity-logs" ? "contained" : "outlined"}
-          color="inherit"
           onClick={() => setActiveSection("activity-logs")}
         >
           Activity Logs

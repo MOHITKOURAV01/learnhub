@@ -164,6 +164,11 @@
   background: transparent;
 }
 
+.payments-filters select option {
+  color: #17201d;
+  background: #fffdf8;
+}
+
 .payments-filter-actions {
   grid-column: 1 / -1;
   display: flex;
@@ -543,4 +548,74 @@
   .payments-skeleton div {
     animation: none;
   }
+}
+
+body.dark-mode .payments-page {
+  --pay-ink: #eae6df;
+  --pay-muted: #a8a29a;
+  --pay-paper: #1a1a1a;
+  --pay-surface: #232323;
+  --pay-line: rgba(234, 230, 223, 0.15);
+  --pay-blue: #5b7fe0;
+  --pay-green: #2fbf8f;
+  --pay-orange: #e08a4f;
+}
+
+body.dark-mode .payments-refresh,
+body.dark-mode .payments-primary,
+body.dark-mode .payments-summary-ink {
+  color: #1a1a1a;
+}
+
+body.dark-mode .payments-summary-ink > span,
+body.dark-mode .payments-summary-ink small {
+  color: rgba(23, 32, 29, 0.65);
+}
+
+body.dark-mode .payments-error,
+body.dark-mode .payments-empty {
+  background: rgba(35, 35, 35, 0.74);
+}
+
+body.dark-mode .payments-error {
+  color: #ff8a80;
+  border-color: rgba(255, 107, 107, 0.35);
+  background: #3a1f1f;
+}
+
+body.dark-mode .payments-table th {
+  background: #2a2a26;
+}
+
+body.dark-mode .payment-status-successful {
+  color: #4fd8a8;
+  background: rgba(47, 191, 143, 0.15);
+}
+
+body.dark-mode .payment-status-pending {
+  color: #e0b04f;
+  background: rgba(224, 138, 79, 0.18);
+}
+
+body.dark-mode .payment-status-failed {
+  color: #ff8a80;
+  background: rgba(255, 107, 107, 0.15);
+}
+
+body.dark-mode .payment-details-button,
+body.dark-mode .payment-dialog-header button {
+  background: #2a2a2a;
+}
+
+body.dark-mode .payment-dialog-backdrop {
+  background: rgba(0, 0, 0, 0.72);
+}
+
+body.dark-mode .payment-dialog {
+  box-shadow: 0 35px 100px rgba(0, 0, 0, 0.6);
+}
+
+body.dark-mode .payment-security-note {
+  color: #8fd6b8;
+  background: #17332a;
 }

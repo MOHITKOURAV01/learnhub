@@ -163,6 +163,11 @@
   background: transparent;
 }
 
+.saved-course-filters select option {
+  color: #17201d;
+  background: #fffdf8;
+}
+
 .saved-filter-actions {
   grid-column: 1 / -1;
   display: flex;
@@ -440,4 +445,56 @@
   .saved-course-skeleton {
     animation: none;
   }
+}
+
+body.dark-mode .bookmark-button {
+  border-color: rgba(234, 230, 223, 0.2);
+  color: #eae6df;
+  background: #232323;
+}
+
+body.dark-mode .bookmark-button.is-bookmarked {
+  color: #e8bf5a;
+  border-color: rgba(232, 191, 90, 0.4);
+  background: #332c17;
+}
+
+body.dark-mode .bookmark-inline-error {
+  color: #ff8a80;
+  background: #3a1f1f;
+}
+
+body.dark-mode .saved-courses-page {
+  --saved-ink: #eae6df;
+  --saved-muted: #a8a29a;
+  --saved-paper: #1a1a1a;
+  --saved-surface: #232323;
+  --saved-line: rgba(234, 230, 223, 0.15);
+  --saved-blue: #5b7fe0;
+  --saved-gold: #e8bf5a;
+}
+
+body.dark-mode .saved-filter-actions button:first-child,
+body.dark-mode .saved-course-open,
+body.dark-mode .saved-course-empty a {
+  color: #1a1a1a;
+}
+
+body.dark-mode .saved-course-card.is-unavailable {
+  background: #2a2a26;
+}
+
+body.dark-mode .saved-course-unavailable-copy {
+  background: rgba(234, 230, 223, 0.08);
+}
+
+body.dark-mode .saved-course-empty,
+body.dark-mode .saved-course-error {
+  background: rgba(35, 35, 35, 0.75);
+}
+
+body.dark-mode .saved-course-error {
+  color: #ff8a80;
+  border-color: rgba(255, 107, 107, 0.35);
+  background: #3a1f1f;
 }
