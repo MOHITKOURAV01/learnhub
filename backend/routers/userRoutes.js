@@ -12,12 +12,15 @@ const {
   getAllCoursesController,
   enrolledCourseController,
   sendCourseContentController,
-  completeSectionController,
   sendAllCoursesUserController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
 } = require("../controllers/userControllers");
+
+const {
+  completeSectionController,
+} = require("../controllers/progressController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 
