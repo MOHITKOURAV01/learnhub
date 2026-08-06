@@ -20,6 +20,7 @@
   --surface-dark: #232526;
   --footer-fg: #f6f2e9;
   --surface-dark-fg: #fff;
+  --navbar-fg: rgba(246, 242, 233, 0.92);
 }
 
 body.dark-mode {
@@ -1329,4 +1330,80 @@ body.dark-mode .catalog-count span {
 
 .teacher-course-enrolled {
   color: var(--ink-soft) !important;
+}
+
+.premium-btn {
+  position: relative;
+  display: inline-block;
+  color: var(--navbar-fg);
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  transition: color 0.2s ease;
+}
+
+.premium-btn::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 2px;
+  height: 2px;
+  background: var(--acid);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+}
+
+.premium-btn:hover {
+  color: var(--acid);
+  background: transparent;
+}
+
+.premium-btn:hover::after {
+  transform: scaleX(1);
+}
+
+.settings-btn {
+  background: transparent;
+}
+
+.settings-btn::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 2px;
+  height: 2px;
+  background: var(--acid);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+}
+
+.settings-btn:hover {
+  color: var(--acid);
+  background: transparent;
+}
+
+.settings-btn:hover::after {
+  transform: scaleX(1);
+}
+
+.brand-premium-L {
+  color: var(--acid);
+  font-weight: 800;
+}
+
+.brand-premium > span:last-child {
+  color: var(--navbar-fg) !important;
+}
+
+.logout-btn {
+  font-family: "DM Sans", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
 }
