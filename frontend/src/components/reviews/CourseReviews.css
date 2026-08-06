@@ -372,10 +372,26 @@ body.dark-mode .rating-distribution-row > div {
   background: #3a372f;
 }
 
-body.dark-mode .review-form-card textarea,
-body.dark-mode .review-form-actions button,
-body.dark-mode .review-owner-actions button,
-body.dark-mode .review-pagination button,
+body.dark-mode .review-form-card textarea {
+  background: #2a2a2a;
+  color: var(--review-ink);
+}
+
+body.dark-mode .review-form-actions button {
+  background: #2a2a2a;
+  color: var(--review-ink);
+}
+
+body.dark-mode .review-owner-actions button {
+  background: #2a2a2a;
+  color: var(--review-ink);
+}
+
+body.dark-mode .review-pagination button {
+  background: #2a2a2a;
+  color: var(--review-ink);
+}
+
 body.dark-mode .reviews-toolbar select {
   background: #2a2a2a;
   color: var(--review-ink);

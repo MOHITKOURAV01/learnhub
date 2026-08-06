@@ -19,6 +19,7 @@
   --navbar-border: rgba(255, 255, 255, 0.06);
   --surface-dark: #232526;
   --footer-fg: #f6f2e9;
+  --surface-dark-fg: #fff;
 }
 
 body.dark-mode {
@@ -1286,6 +1287,7 @@ body.dark-mode .catalog-count span {
 }
 
 .premium-navbar {
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   backdrop-filter: blur(12px) saturate(1.2);
   background: var(--navbar-bg);
   border-radius: 0 0 18px 18px;
@@ -1295,12 +1297,12 @@ body.dark-mode .catalog-count span {
 
 .settings-btn {
   background: var(--surface-dark);
-  color: #fff;
+  color: var(--surface-dark-fg);
 }
 
 .settings-dropdown {
   background: var(--surface-dark);
-  color: #fff;
+  color: var(--surface-dark-fg);
 }
 
 .admin-tabs-nav {
