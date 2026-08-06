@@ -14,6 +14,26 @@
   --acid: #d8ea7d;
   --white: #fffdf8;
   --shadow: 0 24px 80px rgba(51, 44, 31, 0.13);
+  --navbar-bg: rgba(30, 41, 59, 0.82);
+  --navbar-glow: rgba(0, 224, 255, 0.13);
+  --navbar-border: rgba(255, 255, 255, 0.06);
+  --surface-dark: #232526;
+  --footer-fg: #f6f2e9;
+  --surface-dark-fg: #fff;
+}
+
+body.dark-mode {
+  --paper: #121212;
+  --paper-deep: #0b0b0b;
+  --ink: #eae6df;
+  --ink-soft: #b8b3a9;
+  --line: rgba(234, 230, 223, 0.18);
+  --white: #26262a;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  --navbar-bg: rgba(24, 30, 46, 0.97);
+  --navbar-glow: rgba(0, 0, 0, 0.45);
+  --navbar-border: rgba(255, 255, 255, 0.08);
+  --surface-dark: #18191a;
 }
 
 * {
@@ -562,6 +582,10 @@ select:focus-visible {
   background: var(--white);
 }
 
+body.dark-mode .catalog-toolbar {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
 .catalog-search {
   min-height: 56px;
   display: flex;
@@ -612,6 +636,11 @@ select:focus-visible {
   outline: 0;
 }
 
+.catalog-filter select option {
+  color: #17201d;
+  background: #fffdf8;
+}
+
 .catalog-count {
   min-width: 125px;
   padding: 7px 15px;
@@ -630,6 +659,10 @@ select:focus-visible {
 
 .catalog-count span {
   color: rgba(255,255,255,.62);
+}
+
+body.dark-mode .catalog-count span {
+  color: rgba(0, 0, 0, 0.55);
 }
 
 .course-grid {
@@ -877,7 +910,7 @@ select:focus-visible {
 .site-footer {
   padding: 72px max(20px, calc((100% - 1180px) / 2)) 26px;
   background: #111714;
-  color: var(--paper);
+  color: var(--footer-fg);
 }
 
 .site-footer-top {
@@ -887,8 +920,8 @@ select:focus-visible {
 }
 
 .footer-brand > span {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--footer-fg);
+  color: #111714;
 }
 
 .footer-brand {
@@ -919,7 +952,7 @@ select:focus-visible {
 }
 
 .footer-column a {
-  color: var(--paper);
+  color: var(--footer-fg);
   font-size: 0.88rem;
 }
 
@@ -1251,4 +1284,49 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.premium-navbar {
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  background: var(--navbar-bg);
+  border-radius: 0 0 18px 18px;
+  border-bottom: 1px solid var(--navbar-border);
+  box-shadow: 0 2px 10px var(--navbar-glow);
+}
+
+.settings-btn {
+  background: var(--surface-dark);
+  color: var(--surface-dark-fg);
+}
+
+.settings-dropdown {
+  background: var(--surface-dark);
+  color: var(--surface-dark-fg);
+}
+
+.admin-tabs-nav {
+  border-bottom: 1px solid var(--line);
+  background: var(--white) !important;
+}
+
+.admin-tab-btn {
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+
+.admin-tab-btn-active {
+  background: var(--ink) !important;
+  color: var(--white) !important;
+  border-color: var(--ink) !important;
+}
+
+.teacher-course-card {
+  background: var(--white) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+
+.teacher-course-enrolled {
+  color: var(--ink-soft) !important;
 }

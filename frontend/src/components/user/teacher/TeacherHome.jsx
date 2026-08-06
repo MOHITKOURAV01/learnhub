@@ -60,7 +60,7 @@ const TeacherHome = () => {
       <Container className='card-container'>
          {allCourses?.length > 0 ? (
             allCourses.map((course) => (
-               <Card key={course._id} className='card'>
+               <Card key={course._id} className='card teacher-course-card'>
                   {/* <Card.Img variant='top' src='holder.js/100px180' /> */}
                   <Card.Body>
                      <Card.Title>{course.C_title}</Card.Title>
@@ -86,7 +86,7 @@ const TeacherHome = () => {
                         <p>
                            <strong>Sections: </strong> {course.sections.length}
                         </p>
-                        <p style={{color: '#c3b9b9'}}>
+                        <p className='teacher-course-enrolled'>
                            <strong>Enrolled students: </strong> {course.enrolled}
                         </p>
                      </Card.Text>

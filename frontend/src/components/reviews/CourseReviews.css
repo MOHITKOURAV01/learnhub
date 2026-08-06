@@ -238,6 +238,11 @@
   background: white;
 }
 
+.reviews-toolbar select option {
+  color: #17201d;
+  background: #fffdf8;
+}
+
 .review-list {
   display: grid;
   gap: 12px;
@@ -346,4 +351,62 @@
   .review-pagination {
     justify-content: space-between;
   }
+}
+
+body.dark-mode .course-reviews {
+  --review-ink: #eae6df;
+  --review-muted: #a8a29a;
+  --review-paper: #1a1a1a;
+  --review-surface: #232323;
+  --review-line: rgba(234, 230, 223, 0.14);
+  --review-blue: #5b7fe0;
+  --review-green: #2fbf8f;
+  --review-gold: #e8bf5a;
+}
+
+body.dark-mode .review-star-inactive {
+  color: #4a463e;
+}
+
+body.dark-mode .rating-distribution-row > div {
+  background: #3a372f;
+}
+
+body.dark-mode .review-form-card textarea {
+  background: #2a2a2a;
+  color: var(--review-ink);
+}
+
+body.dark-mode .review-form-actions button {
+  background: #2a2a2a;
+  color: var(--review-ink);
+}
+
+body.dark-mode .review-owner-actions button {
+  background: #2a2a2a;
+  color: var(--review-ink);
+}
+
+body.dark-mode .review-pagination button {
+  background: #2a2a2a;
+  color: var(--review-ink);
+}
+
+body.dark-mode .reviews-toolbar select {
+  background: #2a2a2a;
+  color: var(--review-ink);
+}
+
+body.dark-mode .review-form-actions button:last-child {
+  color: #1a1a1a;
+}
+
+body.dark-mode .review-notice {
+  color: #8fd6b8;
+  background: #17332a;
+}
+
+body.dark-mode .review-error {
+  color: #ff8a80;
+  background: #3a1f1f;
 }
