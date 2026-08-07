@@ -347,6 +347,15 @@
   align-items: center;
   gap: 7px;
   text-decoration: none;
+  color: var(--navbar-fg);
+  font-family: var(--nav-font-family);
+  font-size: var(--nav-font-size);
+  font-weight: var(--nav-font-weight);
+  transition: color 0.2s ease;
+}
+
+.saved-courses-nav-link:hover {
+  color: var(--acid);
 }
 
 .saved-courses-nav-link strong {

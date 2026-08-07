@@ -64,7 +64,7 @@ const NavBar = ({ setSelectedComponent }) => {
       <Navbar expand="lg" className="premium-navbar" style={{backdropFilter:'blur(12px) saturate(1.2)', background:'rgba(30,41,59,0.82)', borderRadius:'0 0 18px 18px', boxShadow:'0 4px 24px #00e0ff22', position:'relative', zIndex: 1040}}>
          <Container fluid>
             <Navbar.Brand>
-               <span className="brand-premium"><span className="brand-premium-L">L</span><span style={{color:'#0a2342', fontWeight:'bold'}}>earnhub</span></span>
+               <span className="brand-premium"><span className="brand-premium-L">L</span><span style={{fontWeight:'bold'}}>earnhub</span></span>
             </Navbar.Brand>
             <Navbar.Toggle aria-controls="navbarScroll" />
             <Navbar.Collapse id="navbarScroll">
@@ -72,14 +72,14 @@ const NavBar = ({ setSelectedComponent }) => {
                <a className="premium-btn" href="/dashboard" style={{zIndex: 1051}}>Home</a>
                <div ref={settingsRef} style={{display:'inline-flex', alignItems:'center', position:'relative', zIndex: 1051}}>
                  <button
-                   className="premium-btn"
-                   style={{marginLeft: 8, marginRight: 8, borderRadius: 8, border: 'none', background: '#232526', color: '#fff', fontWeight: 700, padding: '6px 14px', boxShadow: '0 2px 8px #00e0ff33', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, zIndex: 1051}}
+                   className="premium-btn settings-btn"
+                   style={{marginLeft: 8, marginRight: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, zIndex: 1051}}
                    onClick={() => setSettingsOpen((open) => !open)}
                    aria-haspopup="true"
                    aria-expanded={settingsOpen}
                    tabIndex={0}
                  >
-                   <span style={{fontSize: '1.3rem'}}>⚙️</span> <span className="d-none d-md-inline">Settings</span>
+                   <span aria-hidden="true" style={{fontSize: '1.3rem'}}>⚙️</span> <span className="d-none d-md-inline">Settings</span>
                  </button>
                  {settingsOpen && (
                    <div style={{position:'absolute', top:'110%', left:0, background:'#232526', color:'#fff', borderRadius:10, boxShadow:'0 2px 12px #00e0ff33', minWidth:180, zIndex:2000, padding:'12px 0', animation:'fadeInDropdown 0.25s cubic-bezier(.4,0,.2,1)'}}>
@@ -119,12 +119,12 @@ const NavBar = ({ setSelectedComponent }) => {
                   )}
                </Nav>
                <Nav className="premium-nav-links" style={{alignItems:'center'}}>
-                  <h5 className='mx-3' style={{color:'#00e0ff', fontWeight:700, textShadow:'0 2px 12px #00e0ff55'}}>Hi {user.userData.name}</h5>
-                  <Button onClick={handleLogout} size='sm' className='premium-btn' style={{background:'linear-gradient(90deg,#ff5858 0%,#f09819 100%)', color:'#fff', border:'none', boxShadow:'0 0 12px #ff585855'}}>
+                  <h5 className='mx-3' style={{color:'#00e0ff', fontWeight:700, textShadow:'0 2px 12px #00e0ff55', margin:0, display:'flex', alignItems:'center'}}>Hi {user.userData.name}</h5>
+                  <SavedCoursesNavLink className="me-3" />
+                  <Button onClick={handleLogout} size='sm' className='logout-btn' style={{background:'linear-gradient(90deg,#ff5858 0%,#f09819 100%)', color:'#fff', border:'none', boxShadow:'0 0 12px #ff585855'}}>
                     Log Out
                   </Button>
                </Nav>
-               <SavedCoursesNavLink />
             </Navbar.Collapse>
          </Container>
       </Navbar>
