@@ -79,7 +79,7 @@ const NavBar = ({ setSelectedComponent }) => {
                    aria-expanded={settingsOpen}
                    tabIndex={0}
                  >
-                   <span className="d-none d-md-inline">Settings</span>
+                   <span aria-hidden="true" style={{fontSize: '1.3rem'}}>⚙️</span> <span className="d-none d-md-inline">Settings</span>
                  </button>
                  {settingsOpen && (
                    <div style={{position:'absolute', top:'110%', left:0, background:'#232526', color:'#fff', borderRadius:10, boxShadow:'0 2px 12px #00e0ff33', minWidth:180, zIndex:2000, padding:'12px 0', animation:'fadeInDropdown 0.25s cubic-bezier(.4,0,.2,1)'}}>

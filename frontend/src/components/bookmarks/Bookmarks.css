@@ -348,10 +348,10 @@
   gap: 7px;
   text-decoration: none;
   color: var(--navbar-fg);
+  font-family: var(--nav-font-family);
+  font-size: var(--nav-font-size);
+  font-weight: var(--nav-font-weight);
   transition: color 0.2s ease;
-  font-family: "DM Sans", sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
 }
 
 .saved-courses-nav-link:hover {
