@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test tests/*.test.js",
+    "test:watch": "node --test --watch tests/*.test.js",
     "start": "nodemon index"
   },
   "dependencies": {
@@ -18,7 +19,8 @@
     "nodemailer": "^9.0.3",
     "nodemon": "^3.0.1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "devDependencies": {
+    "mongodb-memory-server": "^10.2.0",
+    "supertest": "^7.1.1"
+  }
 }
