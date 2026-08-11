@@ -1,6 +1,5 @@
 const express = require("express");
 const multer = require("multer");
-const path = require("path");
 
 const authMiddleware = require("../middlewares/authMiddleware");
 const {
@@ -8,46 +7,33 @@ const {
   loginController,
   postCourseController,
   getAllCoursesUserController,
+  deleteCourseController,
   getAllCoursesController,
   enrolledCourseController,
   sendCourseContentController,
+  completeSectionController,
   sendAllCoursesUserController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
 } = require("../controllers/userControllers");
 
-const {
-  completeSectionController,
-} = require("../controllers/progressController");
-
 const checkRole = require("../middlewares/roleMiddleware");
 const {
-  deleteCourseController,
-} = require("../controllers/courseDeletionController");
+  createCourseVideoUpload,
+} = require("../utils/videoUpload");
+const {
+  createCourseVideoUploadMiddleware,
+} = require("../utils/courseVideoUploadMiddleware");
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "./uploads/");
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const fileExtension = path.extname(file.originalname);
-    cb(null, file.fieldname + "-" + uniqueSuffix + fileExtension);
-  },
+const upload = createCourseVideoUpload({
+  multerLib: multer,
 });
 
-const upload = multer({
-  storage: storage,
-  fileFilter: function (req, file, callback) {
-    var ext = path.extname(file.originalname);
-    if (ext !== ".mp4") {
-      return callback(new Error("Only .mp4 videos are allowed"));
-    }
-    callback(null, true);
-  }
+const courseVideoUpload = createCourseVideoUploadMiddleware({
+  upload,
 });
 
 router.post("/register", registerController);
@@ -58,8 +44,7 @@ router.post(
   "/addcourse",
   authMiddleware,
   checkRole(["teacher", "admin"]),
-  // upload.single('C_image'),
-  upload.array("S_content"),
+  courseVideoUpload,
   postCourseController
 );
 
