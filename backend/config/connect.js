@@ -1,21 +1,17 @@
 const mongoose = require("mongoose");
 
-const connectionOfDb = () => {
-  mongoose
-    .connect(process.env.MONGO_URI, {
-      dbName: 'video-course-application',
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    })
-    .then(() => {
-      console.log("Connected to MongoDB");
-    })
-    .catch((err) => {
-      // Throwing an error in a promise chain without a downstream .catch
-      // will result in an unhandled promise rejection, crashing the app.
-      console.error(`Could not connect to MongoDB: ${err}`);
-      process.exit(1);
-    });
+const connectionOfDb = async () => {
+  if (!process.env.MONGO_URI) {
+    throw new Error("MONGO_URI is required");
+  }
+
+  await mongoose.connect(process.env.MONGO_URI, {
+    dbName: process.env.MONGO_DB_NAME || "video-course-application",
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+
+  console.log("Connected to MongoDB");
 };
 
 module.exports = connectionOfDb;

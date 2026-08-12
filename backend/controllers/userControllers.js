@@ -10,6 +10,8 @@ const ActivityLog = require('../schemas/activityLogModel');
 const {
   postCourseController,
 } = require("./courseCreationController");
+  getAllCoursesController,
+} = require("./courseListingController");
 //////////for registering/////////////////////////////
 const registerController = async (req, res) => {
   try {
@@ -96,24 +98,7 @@ const loginController = async (req, res) => {
 };
 
 //get all courses
-const getAllCoursesController = async (req, res) => {
-  try {
-    const allCourses = await courseSchema.find();
-    if (!allCourses) {
-      return res.status(404).send("No Courses Found");
-    }
-
-    return res.status(200).send({
-      success: true,
-      data: allCourses,
-    });
-  } catch (error) {
-    console.error("Error in deleting course:", error);
-    res
-      .status(500)
-      .send({ success: false, message: "Failed to delete course" });
-  }
-};
+// Implemented in courseListingController for isolated query validation and tests.
 
 ////////posting course////////////
 // Implemented in courseCreationController so upload cleanup is testable.
