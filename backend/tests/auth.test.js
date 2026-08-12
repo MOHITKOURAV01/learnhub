@@ -32,9 +32,35 @@ test("registration validation rejects a request missing required fields", async 
     .post("/api/user/register")
     .send({});
 
-  assert.equal(response.status, 500);
+  // This used to assert 500. An empty body reached the schema, where the name
+  // setter called value.charAt(0) on undefined and the resulting TypeError was
+  // reported as an internal error. The request is malformed, so it now answers
+  // 400 with a message per field.
+  assert.equal(response.status, 400);
   assert.equal(response.body.success, false);
   assert.equal(typeof response.body.message, "string");
+  assert.ok(response.body.errors.name);
+  assert.ok(response.body.errors.email);
+  assert.ok(response.body.errors.password);
+  assert.ok(response.body.errors.type);
+});
+
+test("registration refuses a client-supplied admin role", async () => {
+  const response = await request(app)
+    .post("/api/user/register")
+    .send({
+      name: "Escalation",
+      email: "escalation@example.com",
+      password: "password123",
+      type: "admin",
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.success, false);
+  assert.ok(response.body.errors.type);
+
+  const stored = await User.findOne({ email: "escalation@example.com" });
+  assert.equal(stored, null, "no account should have been created");
 });
 
 test("login rejects invalid credentials", async () => {
