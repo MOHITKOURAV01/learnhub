@@ -10,6 +10,7 @@ const ActivityLog = require('../schemas/activityLogModel');
 const {
   postCourseController,
 } = require("./courseCreationController");
+const {
   getAllCoursesController,
 } = require("./courseListingController");
 //////////for registering/////////////////////////////
@@ -128,27 +129,8 @@ const getAllCoursesUserController = async (req, res) => {
 };
 
 ///delete courses by the teacher
-const deleteCourseController = async (req, res) => {
-  const { courseid } = req.params; // Use the correct parameter name
-  try {
-    // Attempt to delete the course by its ID
-    const course = await courseSchema.findByIdAndDelete({ _id: courseid });
-
-    // Check if the course was found and deleted successfully
-    if (course) {
-      res
-        .status(200)
-        .send({ success: true, message: "Course deleted successfully" });
-    } else {
-      res.status(404).send({ success: false, message: "Course not found" });
-    }
-  } catch (error) {
-    console.error("Error in deleting course:", error);
-    res
-      .status(500)
-      .send({ success: false, message: "Failed to delete course" });
-  }
-};
+// Implemented in courseDeletionController so ownership is enforced against the
+// authenticated identity and orphaned section videos are cleaned up (#40).
 
 ////enrolled course by the student
 
@@ -253,40 +235,8 @@ const sendCourseContentController = async (req, res) => {
 };
 
 //////////////completing module////////
-const completeSectionController = async (req, res) => {
-  const { courseId, sectionId } = req.body; // Assuming you send courseId and sectionId in the request body
-
-  // console.log(courseId, sectionId)
-  try {
-    // Check if the user is enrolled in the course
-    const enrolledCourseContent = await enrolledCourseSchema.findOne({
-      courseId: courseId,
-      userId: req.body.userId, // Assuming you have user information in req.user
-    });
-
-    if (!enrolledCourseContent) {
-      return res
-        .status(400)
-        .send({ message: "User is not enrolled in the course" });
-    }
-
-    // Update the progress for the section
-    const updatedProgress = enrolledCourseContent.progress || [];
-    updatedProgress.push({ sectionId: sectionId });
-
-    // Update the progress in the database
-    await enrolledCourseSchema.findOneAndUpdate(
-      { _id: enrolledCourseContent._id },
-      { progress: updatedProgress },
-      { new: true }
-    );
-
-    res.status(200).send({ message: "Section completed successfully" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: "Internal server error" });
-  }
-};
+// Implemented in progressController so the section is validated against the
+// course and repeated calls cannot duplicate progress entries (#39).
 
 ////////////get all courses for paricular user
 const sendAllCoursesUserController = async (req, res) => {
@@ -412,10 +362,8 @@ module.exports = {
   getAllCoursesController,
   postCourseController,
   getAllCoursesUserController,
-  deleteCourseController,
   enrolledCourseController,
   sendCourseContentController,
-  completeSectionController,
   sendAllCoursesUserController,
   verifyOtpController,
   forgotPasswordController,
