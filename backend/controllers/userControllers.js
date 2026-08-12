@@ -58,7 +58,10 @@ const registerController = async (req, res) => {
 ////for the login
 const loginController = async (req, res) => {
   try {
-    const user = await userSchema.findOne({ email: req.body.email });
+    // password is select: false on the schema, so ask for it explicitly.
+    const user = await userSchema
+      .findOne({ email: req.body.email })
+      .select("+password");
     if (!user) {
       return res
         .status(200)
@@ -322,7 +325,9 @@ const verifyOtpController = async (req, res) => {
     if (!email || !otp) {
       return res.status(400).send({ message: "Email and OTP are required", success: false });
     }
-    const user = await userSchema.findOne({ email });
+    const user = await userSchema
+      .findOne({ email })
+      .select("+otp +otpExpiry");
     if (!user) {
       return res.status(404).send({ message: "User not found", success: false });
     }
@@ -384,7 +389,9 @@ const resetPasswordController = async (req, res) => {
     if (newPassword.length < 6) {
       return res.status(400).send({ message: "Password must be at least 6 characters.", success: false });
     }
-    const user = await userSchema.findOne({ email });
+    const user = await userSchema
+      .findOne({ email })
+      .select("+resetToken +resetTokenExpiry");
     if (!user) {
       return res.status(404).send({ message: "User not found", success: false });
     }
