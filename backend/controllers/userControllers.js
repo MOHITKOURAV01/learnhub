@@ -8,6 +8,15 @@ const enrolledCourseSchema = require("../schemas/enrolledCourseModel");
 const coursePaymentSchema = require("../schemas/coursePaymentModel");
 const ActivityLog = require('../schemas/activityLogModel');
 const {
+  formatValidationMessage,
+  validateRegistration,
+} = require("../utils/registrationValidation");
+const {
+  buildPaymentSummary,
+  formatPaymentMessage,
+  isFreeCourse,
+} = require("../utils/paymentDetails");
+const {
   postCourseController,
 } = require("./courseCreationController");
   getAllCoursesController,
@@ -15,23 +24,38 @@ const {
 //////////for registering/////////////////////////////
 const registerController = async (req, res) => {
   try {
-    const existsUser = await userSchema.findOne({ email: req.body.email });
+    // The document used to be built from { ...req.body }, which let a client
+    // set `type` and register itself as a teacher or an admin. Only the
+    // validated allow-list is used now.
+    const { valid, errors, value } = validateRegistration(req.body);
+
+    if (!valid) {
+      return res.status(400).send({
+        success: false,
+        message: formatValidationMessage(errors),
+        errors,
+      });
+    }
+
+    const existsUser = await userSchema.findOne({ email: value.email });
     if (existsUser) {
       return res
         .status(200)
         .send({ message: "User already exists", success: false });
     }
-    const password = req.body.password;
+
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    req.body.password = hashedPassword;
+    const hashedPassword = await bcrypt.hash(value.password, salt);
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
     const newUser = new userSchema({
-      ...req.body,
+      name: value.name,
+      email: value.email,
+      password: hashedPassword,
+      type: value.type,
       isVerified: false,
       otp,
       otpExpiry,
@@ -40,7 +64,7 @@ const registerController = async (req, res) => {
 
     // Send email
     await sendEmail({
-      to: req.body.email,
+      to: value.email,
       subject: "Verify your LearnHub Account",
       text: `Your OTP code for verification is: ${otp}. This code is valid for 10 minutes.`,
       html: `<p>Your OTP code for verification is: <strong>${otp}</strong>.</p><p>This code is valid for 10 minutes.</p>`,
@@ -174,20 +198,41 @@ const enrolledCourseController = async (req, res) => {
     });
 
     if (!enrolledCourse) {
+      // The price is read from the course document. Previously nothing looked
+      // at it, so a paid course could be enrolled in with an empty body.
+      const requiresPayment = !isFreeCourse(course.C_price);
+      let paymentSummary = null;
+
+      if (requiresPayment) {
+        const payment = buildPaymentSummary(req.body.cardDetails || req.body);
+
+        if (!payment.valid) {
+          return res.status(400).send({
+            success: false,
+            message: formatPaymentMessage(payment.errors),
+            errors: payment.errors,
+          });
+        }
+
+        paymentSummary = payment.value;
+      }
+
       const enrolledCourseInstance = new enrolledCourseSchema({
         courseId: courseid,
         userId: userId,
         course_Length: course_Length,
       });
 
-      const coursePayment = new coursePaymentSchema({
-        userId: req.body.userId,
-        courseId: courseid,
-        ...req.body,
-      });
-
-      await coursePayment.save();
+      // Save the enrollment first. The old order wrote the payment before the
+      // enrollment, so a failed enrollment left an orphaned payment row.
       await enrolledCourseInstance.save();
+
+      await coursePaymentSchema.create({
+        userId,
+        courseId: courseid,
+        amount: requiresPayment ? String(course.C_price) : "free",
+        ...(paymentSummary ? { cardDetails: paymentSummary } : {}),
+      });
 
       // Increment the 'enrolled' count of the course by +1
       course.enrolled += 1;
