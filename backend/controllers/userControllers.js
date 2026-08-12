@@ -8,6 +8,8 @@ const enrolledCourseSchema = require("../schemas/enrolledCourseModel");
 const coursePaymentSchema = require("../schemas/coursePaymentModel");
 const ActivityLog = require('../schemas/activityLogModel');
 const {
+  postCourseController,
+} = require("./courseCreationController");
   getAllCoursesController,
 } = require("./courseListingController");
 //////////for registering/////////////////////////////
@@ -99,72 +101,7 @@ const loginController = async (req, res) => {
 // Implemented in courseListingController for isolated query validation and tests.
 
 ////////posting course////////////
-const postCourseController = async (req, res) => {
-  try {
-    let price;
-    // Extract data from the request body and files
-    const {
-      userId,
-      C_educator,
-      C_title,
-      C_categories,
-      C_price,
-      C_description,
-      S_title,
-      S_description,
-    } = req.body; 
-    const S_content = req.files.map((file) => file.filename); // Assuming you want to store the filenames in S_content
-    // Create an array of sections
-    const sections = [];
-    if (S_content.length > 1){
-      for (let i = 0; i < S_content.length; i++) {
-        sections.push({
-          S_title: S_title[i],
-          S_content: {
-            filename: S_content[i],
-            path: `/uploads/${S_content[i]}`,
-          },
-          S_description: S_description[i],
-        });
-      }
-    } else{
-      sections.push({
-        S_title: S_title,
-        S_content: {
-          filename: S_content[0],
-          path: `/uploads/${S_content[0]}`,
-        },
-        S_description: S_description,
-      });
-    }
-    
-    if (C_price == 0) {
-      price = "free";
-    } else {
-      price = C_price;
-    }
-    // Create an instance of the course schema
-    const course = new courseSchema({
-      userId,
-      C_educator,
-      C_title,
-      C_categories,
-      C_price: price,
-      C_description,
-      sections,
-    });
-    // Save the course instance to the database
-    await course.save();
-    res
-      .status(201)
-      .send({ success: true, message: "Course created successfully" });
-  } catch (error) {
-    console.error("Error creating course:", error);
-    res
-      .status(500)
-      .send({ success: false, message: "Failed to create course" });
-  }
-};
+// Implemented in courseCreationController so upload cleanup is testable.
 
 ///all courses for the teacher
 const getAllCoursesUserController = async (req, res) => {
