@@ -7,15 +7,11 @@ import React, {
   useRef,
   useState,
 } from "react";
-import axiosInstance from "../components/common/AxiosInstance";
+import axiosInstance, {
+  getToken,
+} from "../components/common/AxiosInstance";
 
 const BookmarksContext = createContext(null);
-
-const authConfig = () => ({
-  headers: {
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-  },
-});
 
 export const BookmarksProvider = ({ children }) => {
   const [bookmarkIds, setBookmarkIds] = useState(() => new Set());
@@ -23,7 +19,7 @@ export const BookmarksProvider = ({ children }) => {
   const [ready, setReady] = useState(false);
   const requestVersion = useRef(0);
 
-  const isAuthenticated = Boolean(localStorage.getItem("token"));
+  const isAuthenticated = Boolean(getToken());
 
   const refreshBookmarks = useCallback(async () => {
     if (!isAuthenticated) {
@@ -36,10 +32,7 @@ export const BookmarksProvider = ({ children }) => {
     setLoading(true);
 
     try {
-      const response = await axiosInstance.get(
-        "/api/bookmarks?limit=50",
-        authConfig(),
-      );
+      const response = await axiosInstance.get("/api/bookmarks?limit=50");
 
       if (version !== requestVersion.current) return;
 
@@ -117,16 +110,9 @@ export const BookmarksProvider = ({ children }) => {
 
       try {
         if (nextValue) {
-          await axiosInstance.post(
-            `/api/bookmarks/${courseId}`,
-            {},
-            authConfig(),
-          );
+          await axiosInstance.post(`/api/bookmarks/${courseId}`, {});
         } else {
-          await axiosInstance.delete(
-            `/api/bookmarks/${courseId}`,
-            authConfig(),
-          );
+          await axiosInstance.delete(`/api/bookmarks/${courseId}`);
         }
 
         return nextValue;
@@ -149,10 +135,7 @@ export const BookmarksProvider = ({ children }) => {
       setBookmarkLocally(courseId, false);
 
       try {
-        await axiosInstance.delete(
-          `/api/bookmarks/${courseId}`,
-          authConfig(),
-        );
+        await axiosInstance.delete(`/api/bookmarks/${courseId}`);
       } catch (error) {
         setBookmarkLocally(courseId, true);
         throw error;
@@ -166,7 +149,7 @@ export const BookmarksProvider = ({ children }) => {
     setBookmarkIds(new Set());
 
     try {
-      await axiosInstance.delete("/api/bookmarks", authConfig());
+      await axiosInstance.delete("/api/bookmarks");
       window.dispatchEvent(
         new CustomEvent("learnhub:bookmarks-cleared"),
       );

@@ -30,11 +30,7 @@ const AllCourses = () => {
 
    const allCoursesList = async () => {
       try {
-         const res = await axiosInstance.get('api/admin/getallcourses', {
-            headers: {
-               "Authorization": `Bearer ${localStorage.getItem("token")}`
-            }
-         })
+         const res = await axiosInstance.get('/api/admin/getallcourses')
          if (res.data.success) {
             setAllCourses(res.data.data)
          }
@@ -56,11 +52,7 @@ const AllCourses = () => {
          return;
       }
       try {
-         const res = await axiosInstance.delete(`api/user/deletecourse/${courseId}`, {
-            headers: {
-               Authorization: `Bearer ${localStorage.getItem('token')}`,
-            },
-         })
+         const res = await axiosInstance.delete(`/api/user/deletecourse/${courseId}`)
          if (res.data.success) {
             alert(res.data.message)
             allCoursesList()

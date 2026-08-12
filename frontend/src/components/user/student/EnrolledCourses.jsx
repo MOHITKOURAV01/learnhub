@@ -27,11 +27,7 @@ const EnrolledCourses = () => {
 
    const allCourses = async () => {
       try {
-         const res = await axiosInstance.get('api/user/getallcoursesuser', {
-            headers: {
-               "Authorization": `Bearer ${localStorage.getItem("token")}`
-            }
-         })
+         const res = await axiosInstance.get('/api/user/getallcoursesuser')
          if (res.data.success) {
             setAllEnrolledCourses(res.data.data)
          }

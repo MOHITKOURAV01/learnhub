@@ -7,11 +7,7 @@ const TeacherHome = () => {
 
    const getAllCoursesUser = async () => {
       try {
-         const res = await axiosInstance.get(`api/user/getallcoursesteacher`, {
-            headers: {
-               Authorization: `Bearer ${localStorage.getItem('token')}`,
-            },
-         });
+         const res = await axiosInstance.get(`/api/user/getallcoursesteacher`);
          if (res.data.success) {
             setAllCourses(res.data.data);
          }
@@ -40,11 +36,7 @@ const TeacherHome = () => {
          return;
       }
       try {
-         const res = await axiosInstance.delete(`api/user/deletecourse/${courseId}`, {
-            headers: {
-               Authorization: `Bearer ${localStorage.getItem('token')}`,
-            },
-         })
+         const res = await axiosInstance.delete(`/api/user/deletecourse/${courseId}`)
          if (res.data.success) {
             alert(res.data.message)
             getAllCoursesUser()

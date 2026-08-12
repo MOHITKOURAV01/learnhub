@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Accordion, Modal } from 'react-bootstrap';
-import axiosInstance from '../../common/AxiosInstance';
+import axiosInstance, { resolveMediaUrl } from '../../common/AxiosInstance';
 import ReactPlayer from 'react-player';
 import { UserContext } from '../../../App';
 import NavBar from '../../common/NavBar';
@@ -38,11 +38,7 @@ const CourseContent = () => {
 
    const getCourseContent = async () => {
       try {
-         const res = await axiosInstance.get(`/api/user/coursecontent/${courseId}`, {
-            headers: {
-               "Authorization": `Bearer ${localStorage.getItem("token")}`
-            }
-         });
+         const res = await axiosInstance.get(`/api/user/coursecontent/${courseId}`);
          if (res.data.success) {
             setCourseContent(res.data.courseContent);
             console.log(res.data.completeModule)
@@ -72,13 +68,9 @@ const CourseContent = () => {
 
             // Send a request to the server to update the user's progress
             try {
-               const res = await axiosInstance.post(`api/user/completemodule`, {
+               const res = await axiosInstance.post(`/api/user/completemodule`, {
                   courseId,
                   sectionId: sectionId
-               }, {
-                  headers: {
-                     Authorization: `Bearer ${localStorage.getItem('token')}`
-                  }
                });
                if (res.data.success) {
                   // Handle success if needed
@@ -144,7 +136,7 @@ const CourseContent = () => {
             <div className="course-video w-50">
                {currentVideo && (
                   <ReactPlayer
-                     url={`http://localhost:5000${currentVideo}`}
+                     url={resolveMediaUrl(currentVideo)}
                      width='100%'
                      height='100%'
                      controls

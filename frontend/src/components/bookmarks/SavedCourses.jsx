@@ -18,12 +18,6 @@ const initialFilters = {
   sort: "recent",
 };
 
-const authConfig = () => ({
-  headers: {
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-  },
-});
-
 const SavedCourses = () => {
   const navigate = useNavigate();
   const {
@@ -69,7 +63,6 @@ const SavedCourses = () => {
     try {
       const response = await axiosInstance.get(
         `/api/bookmarks?${queryString}`,
-        authConfig(),
       );
 
       setItems(response.data.data || []);

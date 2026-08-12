@@ -71,11 +71,7 @@ const AllCourses = () => {
     setLoadError("");
 
     try {
-      const res = await axiosInstance.get("api/user/getallcourses", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+      const res = await axiosInstance.get("/api/user/getallcourses");
 
       if (res.data.success) {
         setAllCourses(res.data.data || []);
@@ -153,13 +149,8 @@ const AllCourses = () => {
   const handleSubmit = async (courseId, fallbackTitle) => {
     try {
       const res = await axiosInstance.post(
-        `api/user/enrolledcourse/${courseId}`,
+        `/api/user/enrolledcourse/${courseId}`,
         cardDetails,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        },
       );
 
       alert(res.data.message);
