@@ -287,32 +287,8 @@ const sendCourseContentController = async (req, res) => {
 // course and repeated calls cannot duplicate progress entries (#39).
 
 ////////////get all courses for paricular user
-const sendAllCoursesUserController = async (req, res) => {
-  const { userId } = req.body;
-  try {
-    // First, fetch the enrolled courses for the user
-    const enrolledCourses = await enrolledCourseSchema.find({ userId });
-
-    // Now, let's retrieve course details for each enrolled course
-    const coursesDetails = await Promise.all(
-      enrolledCourses.map(async (enrolledCourse) => {
-        // Find the corresponding course details using courseId
-        const courseDetails = await courseSchema.findOne({
-          _id: enrolledCourse.courseId,
-        });
-        return courseDetails;
-      })
-    );
-
-    return res.status(200).send({
-      success: true,
-      data: coursesDetails,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "An error occurred" });
-  }
-};
+// Implemented in enrolledCoursesController so the batched lookup, the
+// deleted-course filtering and the progress summary are unit testable.
 
 const verifyOtpController = async (req, res) => {
   try {
@@ -416,7 +392,6 @@ module.exports = {
   getAllCoursesUserController,
   enrolledCourseController,
   sendCourseContentController,
-  sendAllCoursesUserController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
