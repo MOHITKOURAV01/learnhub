@@ -6,6 +6,8 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "test:watch": "node --test --watch tests/*.test.js",
+    "check:syntax": "node --test tests/module-load.test.js",
+    "check": "npm run check:syntax && npm test",
     "start": "nodemon index"
   },
   "dependencies": {

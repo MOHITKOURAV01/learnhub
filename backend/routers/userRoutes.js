@@ -7,16 +7,24 @@ const {
   loginController,
   postCourseController,
   getAllCoursesUserController,
-  deleteCourseController,
   getAllCoursesController,
   enrolledCourseController,
   sendCourseContentController,
-  completeSectionController,
   sendAllCoursesUserController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
 } = require("../controllers/userControllers");
+
+// Course deletion and progress tracking are imported from their own modules
+// rather than through the userControllers aggregator. Both enforce checks that
+// the request body cannot influence, so the wiring is kept explicit here.
+const {
+  deleteCourseController,
+} = require("../controllers/courseDeletionController");
+const {
+  completeSectionController,
+} = require("../controllers/progressController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
