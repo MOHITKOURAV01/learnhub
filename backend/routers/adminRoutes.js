@@ -2,6 +2,7 @@ const express = require("express");
 
 const authMiddleware = require("../middlewares/authMiddleware");
 const checkRole = require("../middlewares/roleMiddleware");
+const validateObjectId = require("../middlewares/validateObjectId");
 
 const {
   adminLoginController,
@@ -10,7 +11,6 @@ const {
   deleteUserController,
   getAllCoursesController,
   getAllEnrolledCoursesController,
-  getAllPaymentsController,
   getAllUsersController,
 } = require("../controllers/adminController");
 
@@ -24,80 +24,42 @@ const {
 
 const router = express.Router();
 
+// Every route below /api/admin except the login itself requires a valid token
+// and the admin role. Applying the guard once at the router level means a new
+// route cannot be added without it, which is how DELETE /deleteuser ended up
+// unauthenticated.
+const requireAdmin = [authMiddleware, checkRole(["admin"])];
+
 router.post("/login", adminLoginController);
 
-router.get(
-  "/getallusers",
-  authMiddleware,
-  checkRole(["admin"]),
-  getAllUsersController,
-);
+router.get("/getallusers", requireAdmin, getAllUsersController);
 
-router.get(
-  "/enrolled-courses",
-  authMiddleware,
-  checkRole(["admin"]),
-  getAllEnrolledCoursesController,
-);
+router.get("/enrolled-courses", requireAdmin, getAllEnrolledCoursesController);
 
-router.get(
-  "/payments",
-  authMiddleware,
-  checkRole(["admin"]),
-  getAdminPaymentsController,
-);
+router.get("/payments", requireAdmin, getAdminPaymentsController);
 
-router.get(
-  "/getallcourses",
-  authMiddleware,
-  checkRole(["admin"]),
-  getAllCoursesController,
-);
+router.get("/activity-logs", requireAdmin, getActivityLogsController);
+
+router.get("/getallcourses", requireAdmin, getAllCoursesController);
 
 router.delete(
   "/deletecourse/:courseid",
-  authMiddleware,
-  checkRole(["admin"]),
+  requireAdmin,
+  validateObjectId("courseid", "course ID"),
   deleteCourseController,
 );
 
 router.delete(
   "/deleteuser/:userid",
-  getAllPaymentsController,
-);
-
-router.get(
-  "/activity-logs",
-  authMiddleware,
-  checkRole(["admin"]),
-  getActivityLogsController,
-);
-
-router.get(
-  "/getallcourses",
-  authMiddleware,
-  checkRole(["admin"]),
-  getAllCoursesController,
-);
-
-router.delete(
-  "/deletecourse/:courseid",
-  authMiddleware,
-  checkRole(["admin"]),
-  deleteCourseController,
-);
-
-router.delete(
-  "/deleteuser/:cuserid",
-  authMiddleware,
-  checkRole(["admin"]),
+  requireAdmin,
+  validateObjectId("userid", "user ID"),
   deleteUserController,
 );
 
 router.post(
   "/reset-password/:userid",
-  authMiddleware,
-  checkRole(["admin"]),
+  requireAdmin,
+  validateObjectId("userid", "user ID"),
   adminResetPasswordController,
 );
 
