@@ -30,6 +30,14 @@ const {
   getEnrolledCoursesController,
 } = require("../controllers/enrolledCoursesController");
 const {
+  createRateLimiter,
+  rateLimitSettingsFromEnv,
+} = require("../middlewares/rateLimiter");
+const {
+  createVerificationThrottle,
+  throttleSettingsFromEnv,
+} = require("../middlewares/verificationThrottle");
+const {
   createCourseVideoUpload,
 } = require("../utils/videoUpload");
 const {
@@ -46,9 +54,26 @@ const courseVideoUpload = createCourseVideoUploadMiddleware({
   upload,
 });
 
-router.post("/register", registerController);
+// Two layers guard every credential endpoint: a per-client rate limit that caps
+// request volume, and a per-account failure throttle that locks the targeted
+// email address so rotating source addresses does not help.
+const rateLimitSettings = rateLimitSettingsFromEnv();
+const throttleSettings = throttleSettingsFromEnv();
 
-router.post("/login", loginController);
+const credentialRateLimiter = (scope) =>
+  createRateLimiter({ ...rateLimitSettings, scope });
+
+const credentialThrottle = (scope) =>
+  createVerificationThrottle({ ...throttleSettings, scope });
+
+router.post("/register", credentialRateLimiter("register"), registerController);
+
+router.post(
+  "/login",
+  credentialRateLimiter("login"),
+  credentialThrottle("login"),
+  loginController,
+);
 
 router.post(
   "/addcourse",
@@ -90,8 +115,27 @@ router.post("/completemodule", authMiddleware, completeSectionController);
 
 router.get("/getallcoursesuser", authMiddleware, getEnrolledCoursesController);
 
-router.post("/verify-otp", verifyOtpController);
-router.post("/forgot-password", forgotPasswordController);
-router.post("/reset-password", resetPasswordController);
+router.post(
+  "/verify-otp",
+  credentialRateLimiter("verify-otp"),
+  credentialThrottle("verify-otp"),
+  verifyOtpController,
+);
+
+// No failure throttle here: this endpoint answers the same way for known and
+// unknown addresses on purpose, so there is no failure to count. The rate limit
+// is what stops it being used as a mail bomb.
+router.post(
+  "/forgot-password",
+  credentialRateLimiter("forgot-password"),
+  forgotPasswordController,
+);
+
+router.post(
+  "/reset-password",
+  credentialRateLimiter("reset-password"),
+  credentialThrottle("reset-password"),
+  resetPasswordController,
+);
 
 module.exports = router;
