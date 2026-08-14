@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Container } from 'react-bootstrap';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
@@ -16,6 +16,10 @@ import Toast from './Toast';
 
 const Login = () => {
    const navigate = useNavigate()
+   const location = useLocation()
+   // Set by ProtectedRoute when it interrupts a navigation, so signing in
+   // returns the user to the page they originally asked for.
+   const intendedPath = location.state?.from?.pathname || '/dashboard'
    const [viewMode, setViewMode] = useState('login'); // 'login', 'forgot', 'reset'
    const [data, setData] = useState({
       email: "",
@@ -68,7 +72,7 @@ const Login = () => {
                      USER_STORAGE_KEY,
                      JSON.stringify(res.data.userData),
                   );
-                  navigate('/dashboard')
+                  navigate(intendedPath, { replace: true })
                   setTimeout(() => {
                      window.location.reload()
                   }, 1000)
