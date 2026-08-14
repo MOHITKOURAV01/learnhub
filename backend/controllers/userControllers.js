@@ -5,17 +5,11 @@ const sendEmail = require("../utils/sendEmail");
 const userSchema = require("../schemas/userModel");
 const courseSchema = require("../schemas/courseModel");
 const enrolledCourseSchema = require("../schemas/enrolledCourseModel");
-const coursePaymentSchema = require("../schemas/coursePaymentModel");
 const ActivityLog = require('../schemas/activityLogModel');
 const {
   formatValidationMessage,
   validateRegistration,
 } = require("../utils/registrationValidation");
-const {
-  buildPaymentSummary,
-  formatPaymentMessage,
-  isFreeCourse,
-} = require("../utils/paymentDetails");
 const {
   postCourseController,
 } = require("./courseCreationController");
@@ -160,88 +154,8 @@ const getAllCoursesUserController = async (req, res) => {
 // authenticated identity and orphaned section videos are cleaned up (#40).
 
 ////enrolled course by the student
-
-const enrolledCourseController = async (req, res) => {
-  const { courseid } = req.params;
-  const { userId } = req.body;
-  try {
-    const course = await courseSchema.findById(courseid);
-
-    if (!course) {
-      return res
-        .status(404)
-        .send({ success: false, message: "Course Not Found!" });
-    }
-
-    let course_Length = course.sections.length;
-
-    // Check if the user is already enrolled in the course
-    const enrolledCourse = await enrolledCourseSchema.findOne({
-      courseId: courseid,
-      userId: userId,
-      course_Length: course_Length,
-    });
-
-    if (!enrolledCourse) {
-      // The price is read from the course document. Previously nothing looked
-      // at it, so a paid course could be enrolled in with an empty body.
-      const requiresPayment = !isFreeCourse(course.C_price);
-      let paymentSummary = null;
-
-      if (requiresPayment) {
-        const payment = buildPaymentSummary(req.body.cardDetails || req.body);
-
-        if (!payment.valid) {
-          return res.status(400).send({
-            success: false,
-            message: formatPaymentMessage(payment.errors),
-            errors: payment.errors,
-          });
-        }
-
-        paymentSummary = payment.value;
-      }
-
-      const enrolledCourseInstance = new enrolledCourseSchema({
-        courseId: courseid,
-        userId: userId,
-        course_Length: course_Length,
-      });
-
-      // Save the enrollment first. The old order wrote the payment before the
-      // enrollment, so a failed enrollment left an orphaned payment row.
-      await enrolledCourseInstance.save();
-
-      await coursePaymentSchema.create({
-        userId,
-        courseId: courseid,
-        amount: requiresPayment ? String(course.C_price) : "free",
-        ...(paymentSummary ? { cardDetails: paymentSummary } : {}),
-      });
-
-      // Increment the 'enrolled' count of the course by +1
-      course.enrolled += 1;
-      await course.save();
-
-      res.status(200).send({
-        success: true,
-        message: "Enroll Successfully",
-        course: { id: course._id, Title: course.C_title },
-      });
-    } else {
-      res.status(200).send({
-        success: false,
-        message: "You are already enrolled in this Course!",
-        course: { id: course._id, Title: course.C_title },
-      });
-    }
-  } catch (error) {
-    console.error("Error in enrolling course:", error);
-    res
-      .status(500)
-      .send({ success: false, message: "Failed to enroll in the course" });
-  }
-};
+// Implemented in enrollmentController so section counting, idempotency and the
+// enrolled counter can be unit tested with injected models.
 
 /////sending the course content for learning to student
 const sendCourseContentController = async (req, res) => {
@@ -390,7 +304,6 @@ module.exports = {
   getAllCoursesController,
   postCourseController,
   getAllCoursesUserController,
-  enrolledCourseController,
   sendCourseContentController,
   verifyOtpController,
   forgotPasswordController,

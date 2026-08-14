@@ -8,7 +8,6 @@ const {
   postCourseController,
   getAllCoursesUserController,
   getAllCoursesController,
-  enrolledCourseController,
   sendCourseContentController,
   verifyOtpController,
   forgotPasswordController,
@@ -29,6 +28,9 @@ const checkRole = require("../middlewares/roleMiddleware");
 const {
   getEnrolledCoursesController,
 } = require("../controllers/enrolledCoursesController");
+const {
+  enrollCourseController,
+} = require("../controllers/enrollmentController");
 const {
   createCourseVideoUpload,
 } = require("../utils/videoUpload");
@@ -77,7 +79,7 @@ router.delete(
 router.post(
   "/enrolledcourse/:courseid",
   authMiddleware,
-  enrolledCourseController
+  enrollCourseController
 );
 
 router.get(
