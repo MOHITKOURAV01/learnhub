@@ -3,6 +3,7 @@ import { Navbar, Nav, Button, Container } from 'react-bootstrap';
 import { UserContext } from '../../App';
 import { NavLink } from 'react-router-dom';
 import SavedCoursesNavLink from "../bookmarks/SavedCoursesNavLink";
+import { clearSession } from "./AxiosInstance";
 
 const NavBar = ({ setSelectedComponent }) => {
 
@@ -52,8 +53,7 @@ const NavBar = ({ setSelectedComponent }) => {
 
 
    const handleLogout = () => {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+      clearSession();
       window.location.href = "/";
    }
    const handleOptionClick = (component) => {

@@ -86,12 +86,7 @@ const PaymentRecords = () => {
 
       try {
         const response = await axiosInstance.get(
-          `api/admin/payments?${queryString}`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          },
+          `/api/admin/payments?${queryString}`,
         );
 
         if (!response.data.success) {

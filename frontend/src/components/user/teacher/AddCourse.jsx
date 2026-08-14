@@ -84,7 +84,6 @@ const AddCourse = () => {
       try {
          const res = await axiosInstance.post('/api/user/addcourse', formData, {
             headers: {
-               Authorization: `Bearer ${localStorage.getItem('token')}`,
                'Content-Type': 'multipart/form-data',
             },
          });

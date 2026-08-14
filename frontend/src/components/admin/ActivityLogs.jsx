@@ -86,12 +86,7 @@ const ActivityLogs = () => {
 
       try {
         const response = await axiosInstance.get(
-          `api/admin/activity-logs?${queryString}`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          },
+          `/api/admin/activity-logs?${queryString}`,
         );
 
         if (!response.data.success) {

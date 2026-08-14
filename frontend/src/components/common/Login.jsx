@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import { Container } from 'react-bootstrap';
 import Avatar from '@mui/material/Avatar';
@@ -7,7 +7,10 @@ import TextField from '@mui/material/TextField';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import axiosInstance from './AxiosInstance';
+import axiosInstance, {
+   TOKEN_STORAGE_KEY,
+   USER_STORAGE_KEY,
+} from './AxiosInstance';
 import PublicNavBar from './PublicNavBar';
 import Toast from './Toast';
 
@@ -31,6 +34,19 @@ const Login = () => {
       setToast({ message: '', type: 'info' });
    };
 
+   // The axios response interceptor sends an expired session here with a
+   // ?session=expired marker, so the user is told why they were signed out.
+   useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+
+      if (params.get('session') === 'expired') {
+         setToast({
+            message: 'Your session expired. Please sign in again.',
+            type: 'info',
+         });
+      }
+   }, []);
+
    const handleChange = (e) => {
       const { name, value } = e.target;
       setData({ ...data, [name]: value });
@@ -47,8 +63,11 @@ const Login = () => {
                if (res.data.success) {
                   showToast(res.data.message, "success");
 
-                  localStorage.setItem("token", res.data.token);
-                  localStorage.setItem("user", JSON.stringify(res.data.userData));
+                  localStorage.setItem(TOKEN_STORAGE_KEY, res.data.token);
+                  localStorage.setItem(
+                     USER_STORAGE_KEY,
+                     JSON.stringify(res.data.userData),
+                  );
                   navigate('/dashboard')
                   setTimeout(() => {
                      window.location.reload()

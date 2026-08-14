@@ -45,11 +45,7 @@ const AdminHome = () => {
     setUsersError("");
 
     try {
-      const response = await axiosInstance.get("api/admin/getallusers", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+      const response = await axiosInstance.get("/api/admin/getallusers");
 
       if (response.data.success) {
         setAllUsers(response.data.data || []);
@@ -77,14 +73,11 @@ const AdminHome = () => {
     if (!confirmation) return;
 
     try {
+      // This call previously passed a second URL where axios expects the
+      // request config, so the config argument that carried the auth header
+      // was silently discarded.
       const response = await axiosInstance.delete(
-        `api/admin/deleteuser/${userId}`,
-        `api/user/deleteuser/${userId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        },
+        `/api/admin/deleteuser/${userId}`,
       );
 
       if (response.data.success) {

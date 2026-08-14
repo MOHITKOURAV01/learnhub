@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import axiosInstance from "../common/AxiosInstance";
+import React, { useCallback, useEffect, useState } from "react";
+import axiosInstance, { getToken } from "../common/AxiosInstance";
 import RatingStars from "./RatingStars";
 import "./CourseReviews.css";
 
@@ -23,7 +23,7 @@ const formatDate = (value) =>
   }).format(new Date(value));
 
 const CourseReviews = ({ courseId, courseTitle }) => {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   const [reviews, setReviews] = useState([]);
   const [summary, setSummary] = useState(emptySummary);
   const [pagination, setPagination] = useState(initialPagination);
@@ -38,14 +38,6 @@ const CourseReviews = ({ courseId, courseTitle }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-
-  const authHeaders = useMemo(
-    () =>
-      token
-        ? { headers: { Authorization: `Bearer ${token}` } }
-        : undefined,
-    [token],
-  );
 
   const loadReviews = useCallback(async () => {
     if (!courseId) return;
@@ -77,7 +69,6 @@ const CourseReviews = ({ courseId, courseTitle }) => {
     try {
       const response = await axiosInstance.get(
         `/api/reviews/${courseId}/mine`,
-        authHeaders,
       );
 
       setMyReview(response.data.data);
@@ -90,7 +81,7 @@ const CourseReviews = ({ courseId, courseTitle }) => {
     } catch {
       setCanReview(false);
     }
-  }, [authHeaders, courseId, token]);
+  }, [courseId, token]);
 
   useEffect(() => {
     loadReviews();
@@ -129,13 +120,8 @@ const CourseReviews = ({ courseId, courseTitle }) => {
         ? await axiosInstance.put(
             `/api/reviews/review/${myReview.id}`,
             payload,
-            authHeaders,
           )
-        : await axiosInstance.post(
-            `/api/reviews/${courseId}`,
-            payload,
-            authHeaders,
-          );
+        : await axiosInstance.post(`/api/reviews/${courseId}`, payload);
 
       setMyReview(response.data.data);
       setSummary(response.data.summary);
@@ -164,7 +150,6 @@ const CourseReviews = ({ courseId, courseTitle }) => {
     try {
       const response = await axiosInstance.delete(
         `/api/reviews/review/${myReview.id}`,
-        authHeaders,
       );
 
       setMyReview(null);
