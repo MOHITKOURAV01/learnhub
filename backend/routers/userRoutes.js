@@ -10,7 +10,6 @@ const {
   getAllCoursesController,
   enrolledCourseController,
   sendCourseContentController,
-  sendAllCoursesUserController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
@@ -27,6 +26,9 @@ const {
 } = require("../controllers/progressController");
 
 const checkRole = require("../middlewares/roleMiddleware");
+const {
+  getEnrolledCoursesController,
+} = require("../controllers/enrolledCoursesController");
 const {
   createCourseVideoUpload,
 } = require("../utils/videoUpload");
@@ -86,7 +88,7 @@ router.get(
 
 router.post("/completemodule", authMiddleware, completeSectionController);
 
-router.get("/getallcoursesuser", authMiddleware, sendAllCoursesUserController);
+router.get("/getallcoursesuser", authMiddleware, getEnrolledCoursesController);
 
 router.post("/verify-otp", verifyOtpController);
 router.post("/forgot-password", forgotPasswordController);
