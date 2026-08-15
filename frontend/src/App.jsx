@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { useState, useEffect, createContext } from "react";
+import { createContext, useMemo } from "react";
 import "./App.css";
 
 import Home from "./components/common/Home";
@@ -9,76 +9,110 @@ import Dashboard from "./components/common/Dashboard";
 import CourseContent from "./components/user/student/CourseContent";
 import SiteFooter from "./components/common/SiteFooter";
 import LegalPlaceholder from "./components/common/LegalPlaceholder";
+import NotFound from "./components/common/NotFound";
 import {
   BookmarksProvider,
 } from "./context/BookmarksContext";
 
 import SavedCourses from "./components/bookmarks/SavedCourses";
 
+import { AuthProvider } from "./auth/AuthProvider";
+import { useAuth } from "./auth/authContext";
+import { ProtectedRoute, PublicOnlyRoute } from "./auth/ProtectedRoute";
+
+// Still exported with its original { userData, userLoggedIn } shape: NavBar,
+// Dashboard, UserHome, AllCourses, AddCourse and CourseContent all read it and
+// none of them needed to change. It is now fed from the validated session
+// rather than from whatever happened to be in localStorage.
 export const UserContext = createContext();
 
-function App() {
-  const [userData, setUserData] = useState();
-  const [userLoggedIn, setUserLoggedIn] = useState(false);
+function AppRoutes() {
+  const { user, isAuthenticated } = useAuth();
 
-  const getData = async () => {
-    try {
-      const user = JSON.parse(localStorage.getItem("user"));
-
-      if (user) {
-        setUserData(user);
-        setUserLoggedIn(true);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  useEffect(() => {
-    getData();
-  }, []);
+  const legacyUserValue = useMemo(
+    () => ({ userData: user, userLoggedIn: isAuthenticated }),
+    [user, isAuthenticated],
+  );
 
   return (
-    <UserContext.Provider value={{ userData, userLoggedIn }}>
-      <div className="App">
-        <BookmarksProvider>
-        <Router>
-          <div className="content">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route
-  path="/saved-courses"
-  element={<SavedCourses />}
-/>
-              <Route
-                path="/privacy"
-                element={<LegalPlaceholder title="Privacy Policy" />}
-              />
-              <Route
-                path="/terms"
-                element={<LegalPlaceholder title="Terms & Conditions" />}
-              />
+    <UserContext.Provider value={legacyUserValue}>
+      <div className="content">
+        <Routes>
+          <Route path="/" element={<Home />} />
 
-              {userLoggedIn ? (
-                <>
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route
-                    path="/courseSection/:courseId/:courseTitle"
-                    element={<CourseContent />}
-                  />
-                </>
-              ) : (
-                <Route path="/login" element={<Login />} />
-              )}
-            </Routes>
-          </div>
-          <SiteFooter />
-        </Router>
-        </BookmarksProvider>
+          <Route
+            path="/login"
+            element={
+              <PublicOnlyRoute>
+                <Login />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <PublicOnlyRoute>
+                <Register />
+              </PublicOnlyRoute>
+            }
+          />
+
+          <Route
+            path="/privacy"
+            element={<LegalPlaceholder title="Privacy Policy" />}
+          />
+          <Route
+            path="/terms"
+            element={<LegalPlaceholder title="Terms & Conditions" />}
+          />
+
+          {/* Bookmarks are a student-only feature on the API side, so the
+              route says so instead of letting the page mount and fail. */}
+          <Route
+            path="/saved-courses"
+            element={
+              <ProtectedRoute allowedRoles={["student"]}>
+                <SavedCourses />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/courseSection/:courseId/:courseTitle"
+            element={
+              <ProtectedRoute>
+                <CourseContent />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </div>
+      <SiteFooter />
     </UserContext.Provider>
+  );
+}
+
+function App() {
+  return (
+    <div className="App">
+      <AuthProvider>
+        <BookmarksProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </BookmarksProvider>
+      </AuthProvider>
+    </div>
   );
 }
 
