@@ -24,6 +24,9 @@ const {
 const {
   completeSectionController,
 } = require("../controllers/progressController");
+const {
+  resendOtpController,
+} = require("../controllers/emailVerificationController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
@@ -91,6 +94,11 @@ router.post("/completemodule", authMiddleware, completeSectionController);
 router.get("/getallcoursesuser", authMiddleware, getEnrolledCoursesController);
 
 router.post("/verify-otp", verifyOtpController);
+// Without this an account whose OTP expired had no route back: registering
+// again answered "User already exists" and logging in answered "Email is not
+// verified". The cooldown lives in the controller, not here, so it applies
+// however the code is requested.
+router.post("/resend-otp", resendOtpController);
 router.post("/forgot-password", forgotPasswordController);
 router.post("/reset-password", resetPasswordController);
 
