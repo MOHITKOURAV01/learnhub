@@ -20,14 +20,33 @@ export const clearSession = () => {
 };
 
 /**
- * Builds an absolute URL for a file served by the API, such as a section
- * video under /uploads. Components used to concatenate the host inline.
+ * Builds an absolute URL for a file served by the API. Components used to
+ * concatenate the host inline.
  */
 export const resolveMediaUrl = (path) => {
   if (!path) return '';
   if (/^https?:\/\//i.test(path)) return path;
 
   return `${API_BASE_URL.replace(/\/$/, '')}/${String(path).replace(/^\//, '')}`;
+};
+
+/**
+ * Builds the URL for a section video.
+ *
+ * The player sets the src of a <video> element, which cannot carry an
+ * Authorization header, so the short-lived playback token returned by
+ * /api/user/coursecontent/:courseid rides in the query string. It is scoped to
+ * one course and to reading video, and expires in half an hour — unlike the
+ * session token, which URLs and access logs have no business holding.
+ *
+ * @param {string} streamUrl the path the API returned for the section
+ * @param {string} playbackToken
+ * @returns {string}
+ */
+export const resolveCourseVideoUrl = (streamUrl, playbackToken) => {
+  if (!streamUrl || !playbackToken) return '';
+
+  return `${resolveMediaUrl(streamUrl)}?token=${encodeURIComponent(playbackToken)}`;
 };
 
 const axiosInstance = axios.create({

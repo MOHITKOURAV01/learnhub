@@ -308,7 +308,12 @@ test("controller preserves data array and adds pagination metadata", async () =>
   );
 
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.data, courses);
+  // The row still comes back under `data`, minus `sections` and plus a count.
+  // This route is unauthenticated and each section carried the storage path of
+  // its video (#76).
+  assert.deepEqual(res.body.data, [
+    { _id: "course-1", C_title: "Course One", sectionCount: 0 },
+  ]);
   assert.deepEqual(res.body.pagination, {
     page: 1,
     limit: 12,

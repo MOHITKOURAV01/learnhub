@@ -33,6 +33,8 @@ const {
   canResend,
   isOtpExpired,
 } = require("../utils/otpCodes");
+const { withPlaybackUrls } = require("../utils/publicCourse");
+const { signPlaybackToken } = require("../utils/playbackTokens");
 //////////for registering/////////////////////////////
 const registerController = async (req, res) => {
   try {
@@ -327,9 +329,19 @@ const sendCourseContentController = async (req, res) => {
         message: "User not found",
       });
     } else {
+      // The enrolment check above is the only place that knows this viewer may
+      // watch this course, so the playback token is minted here. Sections go
+      // out with a stream URL instead of the file's storage path: /uploads is
+      // no longer served, and a path is not something the client needs.
+      const playbackToken = signPlaybackToken({
+        userId: req.body.userId,
+        courseId: courseid,
+      });
+
       return res.status(200).send({
         success: true,
-        courseContent: course.sections,
+        courseContent: withPlaybackUrls(course.sections, courseid),
+        playbackToken,
         completeModule: user.progress,
         certficateData: user,
       });

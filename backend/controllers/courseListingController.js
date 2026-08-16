@@ -6,6 +6,7 @@ const {
   buildCourseFilter,
   buildCourseSort,
 } = require("../utils/courseListing");
+const { toPublicCourses } = require("../utils/publicCourse");
 
 function createGetAllCoursesController({
   Course,
@@ -31,7 +32,9 @@ function createGetAllCoursesController({
       return res.status(200).send({
         success: true,
         // Preserve the existing response field used by current consumers.
-        data: allCourses,
+        // `sections` is stripped: this route is unauthenticated, and each
+        // section carried the storage path of its video.
+        data: toPublicCourses(allCourses),
         pagination: buildPaginationMetadata({
           page,
           limit,
