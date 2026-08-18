@@ -98,7 +98,7 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
 
-      font-size: clamp(0.4rem, 4vw, 1.25rem);
+      font-size: clamp(0.6rem, 4vw, 1.25rem);
       line-height: 1.4;
 
       overflow-wrap: anywhere;
