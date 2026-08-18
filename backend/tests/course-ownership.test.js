@@ -50,12 +50,23 @@ function createCourseModel(course, deletedCourse = course) {
 const validId = "64b7f1e2c3d4e5f607182930";
 const isValidObjectId = (value) => value === validId;
 
+// The controller clears the rows that referenced the course as well as its
+// files. These tests are about ownership, so the cascade is stubbed and
+// recorded; cascade-delete.test.js covers what it actually removes.
+function createCascade(calls = []) {
+  return async (courseId) => {
+    calls.push(courseId);
+    return { enrolments: 0, payments: 0, reviews: 0, bookmarks: 0, files: { deleted: 0, failed: 0 } };
+  };
+}
+
 test("teacher can delete their own course", async () => {
   const Course = createCourseModel(createCourse());
   const cleanupCalls = [];
   const controller = createDeleteCourseController({
     Course,
     isValidObjectId,
+    cascade: createCascade(),
     cleanupFiles: async (course) => {
       cleanupCalls.push(course);
       return { deleted: ["video.mp4"], failed: [] };
@@ -84,6 +95,7 @@ test("teacher cannot delete another teacher's course", async () => {
   const controller = createDeleteCourseController({
     Course,
     isValidObjectId,
+    cascade: createCascade(),
     cleanupFiles: async () => ({ deleted: [], failed: [] }),
   });
   const req = {
@@ -105,6 +117,7 @@ test("admin can delete any course", async () => {
   const controller = createDeleteCourseController({
     Course,
     isValidObjectId,
+    cascade: createCascade(),
     cleanupFiles: async () => ({ deleted: [], failed: [] }),
   });
   const req = {
@@ -124,6 +137,7 @@ test("ownership comes from authenticated identity, not request body", async () =
   const controller = createDeleteCourseController({
     Course,
     isValidObjectId,
+    cascade: createCascade(),
     cleanupFiles: async () => ({ deleted: [], failed: [] }),
   });
   const req = {
@@ -144,6 +158,7 @@ test("invalid course ID returns 400 without querying MongoDB", async () => {
   const controller = createDeleteCourseController({
     Course,
     isValidObjectId,
+    cascade: createCascade(),
     cleanupFiles: async () => ({ deleted: [], failed: [] }),
   });
   const req = {
@@ -163,6 +178,7 @@ test("missing course returns 404", async () => {
   const controller = createDeleteCourseController({
     Course,
     isValidObjectId,
+    cascade: createCascade(),
     cleanupFiles: async () => ({ deleted: [], failed: [] }),
   });
   const req = {
@@ -183,6 +199,7 @@ test("file cleanup failures do not restore or expose deleted course", async () =
   const controller = createDeleteCourseController({
     Course,
     isValidObjectId,
+    cascade: createCascade(),
     cleanupFiles: async () => ({
       deleted: [],
       failed: [{ filename: "video.mp4", reason: "locked" }],
