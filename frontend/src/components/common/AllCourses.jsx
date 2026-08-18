@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useState } from "react";
+import React, { useContext, useState } from "react";
 import { Button, Form, Modal } from "react-bootstrap";
 import { MDBCol, MDBInput, MDBRow } from "mdb-react-ui-kit";
 import { Link, useNavigate } from "react-router-dom";
@@ -6,6 +6,13 @@ import { UserContext } from "../../App";
 import CourseRatingBadge from "../reviews/CourseRatingBadge";
 import axiosInstance from "./AxiosInstance";
 import BookmarkButton from "../bookmarks/BookmarkButton";
+import CatalogPager from "./CatalogPager";
+import useCourseCatalog from "../../hooks/useCourseCatalog";
+import {
+  SORT_OPTIONS,
+  describeRange,
+  isPaidCourse,
+} from "../../lib/catalogQuery";
 
 const paletteByCategory = [
   ["#f2c14e", "#e56b6f"],
@@ -53,12 +60,7 @@ const CourseArtwork = ({ course, index }) => {
 const AllCourses = () => {
   const navigate = useNavigate();
   const user = useContext(UserContext);
-  const [allCourses, setAllCourses] = useState([]);
-  const [filterTitle, setFilterTitle] = useState("");
-  const [filterType, setFilterType] = useState("");
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
   const [cardDetails, setCardDetails] = useState({
     cardholdername: "",
     cardnumber: "",
@@ -66,50 +68,27 @@ const AllCourses = () => {
     expmonthyear: "",
   });
 
-  const getAllCoursesUser = async () => {
-    setLoading(true);
-    setLoadError("");
-
-    try {
-      const res = await axiosInstance.get("/api/user/getallcourses");
-
-      if (res.data.success) {
-        setAllCourses(res.data.data || []);
-      } else {
-        setLoadError("The course catalog is temporarily unavailable.");
-      }
-    } catch (error) {
-      console.error("Unable to load courses:", error);
-      setLoadError("We could not load courses right now. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    getAllCoursesUser();
-  }, []);
-
-  const isPaidCourse = (course) => /\d/.test(course.C_price || "");
-
-  const visibleCourses = useMemo(
-    () =>
-      allCourses.filter((course) => {
-        const matchesTitle =
-          !filterTitle ||
-          course.C_title?.toLowerCase().includes(filterTitle.toLowerCase()) ||
-          course.C_categories?.toLowerCase().includes(filterTitle.toLowerCase());
-
-        const paid = isPaidCourse(course);
-        const matchesType =
-          !filterType ||
-          (filterType === "Free" && !paid) ||
-          (filterType === "Paid" && paid);
-
-        return matchesTitle && matchesType;
-      }),
-    [allCourses, filterTitle, filterType],
-  );
+  // The search, the filter and the paging all happen on the server now. This
+  // page used to fetch once with no query, receive the default first twelve
+  // courses, and filter those twelve in the browser — so course thirteen was
+  // unreachable and the search box only ever searched one page.
+  const {
+    courses,
+    pagination,
+    loading,
+    error: loadError,
+    search,
+    setSearch,
+    priceType,
+    setPriceType,
+    sort,
+    setSort,
+    goToPage,
+    clearFilters,
+    reload,
+    searchPending,
+    hasFilters,
+  } = useCourseCatalog();
 
   const resetPaymentForm = () => {
     setCardDetails({
@@ -163,6 +142,8 @@ const AllCourses = () => {
       }
 
       closePaymentModal();
+      // The learner count on the card is now stale.
+      reload();
     } catch (error) {
       console.error("Unable to enroll:", error);
       alert("Enrollment could not be completed. Please try again.");
@@ -177,28 +158,46 @@ const AllCourses = () => {
           <span className="sr-only">Search courses</span>
           <input
             type="search"
-            placeholder="Search by course or category"
-            value={filterTitle}
-            onChange={(event) => setFilterTitle(event.target.value)}
+            placeholder="Search every course by title or description"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
           />
         </label>
 
         <label className="catalog-filter">
           <span>Access</span>
           <select
-            value={filterType}
-            onChange={(event) => setFilterType(event.target.value)}
+            value={priceType}
+            onChange={(event) => setPriceType(event.target.value)}
             aria-label="Filter courses by access type"
           >
             <option value="">All courses</option>
-            <option value="Free">Free</option>
-            <option value="Paid">Paid</option>
+            <option value="free">Free</option>
+            <option value="paid">Paid</option>
+          </select>
+        </label>
+
+        <label className="catalog-filter">
+          <span>Sort</span>
+          <select
+            value={sort}
+            onChange={(event) => setSort(event.target.value)}
+            aria-label="Sort courses"
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
 
         <div className="catalog-count" aria-live="polite">
-          <strong>{visibleCourses.length}</strong>
-          <span>{visibleCourses.length === 1 ? "course" : "courses"} found</span>
+          <strong>{pagination.totalItems}</strong>
+          <span>
+            {pagination.totalItems === 1 ? "course" : "courses"}
+            {searchPending ? " — searching…" : " found"}
+          </span>
         </div>
       </div>
 
@@ -213,13 +212,13 @@ const AllCourses = () => {
           <span aria-hidden="true">!</span>
           <h3>Course catalog unavailable</h3>
           <p>{loadError}</p>
-          <button type="button" className="button button-ink" onClick={getAllCoursesUser}>
+          <button type="button" className="button button-ink" onClick={reload}>
             Try again
           </button>
         </div>
-      ) : visibleCourses.length > 0 ? (
+      ) : courses.length > 0 ? (
         <div className="course-grid">
-          {visibleCourses.map((course, index) => (
+          {courses.map((course, index) => (
             <article className="catalog-card" key={course._id}>
               <CourseArtwork course={course} index={index} />
 
@@ -287,19 +286,40 @@ const AllCourses = () => {
       ) : (
         <div className="course-state">
           <span aria-hidden="true">○</span>
-          <h3>No courses match that search</h3>
-          <p>Try a broader keyword or switch the access filter.</p>
-          <button
-            type="button"
-            className="button button-outline"
-            onClick={() => {
-              setFilterTitle("");
-              setFilterType("");
-            }}
-          >
-            Clear filters
-          </button>
+          <h3>
+            {hasFilters
+              ? "No courses match that search"
+              : "There are no courses yet"}
+          </h3>
+          <p>
+            {hasFilters
+              ? "Every course is searched, so try a broader keyword or switch the access filter."
+              : "Check back once an educator publishes one."}
+          </p>
+          {hasFilters && (
+            <button
+              type="button"
+              className="button button-outline"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
+      )}
+
+      {!loading && !loadError && courses.length > 0 && (
+        <>
+          <p className="catalog-range" aria-live="polite">
+            {describeRange(pagination, courses.length)}
+          </p>
+
+          <CatalogPager
+            pagination={pagination}
+            onPageChange={goToPage}
+            disabled={loading}
+          />
+        </>
       )}
 
       <Modal show={Boolean(selectedCourse)} onHide={closePaymentModal} centered>

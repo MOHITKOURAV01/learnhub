@@ -675,6 +675,78 @@ body.dark-mode .catalog-count span {
   gap: 24px;
 }
 
+/* Paging controls. The catalogue is served a page at a time, so without these
+   nothing past the first twelve courses can be reached. */
+.catalog-range {
+  margin: 22px 0 0;
+  text-align: center;
+  font-size: 0.92rem;
+  color: rgba(23, 32, 29, 0.6);
+}
+
+body.dark-mode .catalog-range {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.catalog-pager {
+  margin: 14px 0 40px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.catalog-pager-pages {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+}
+
+.catalog-pager-step,
+.catalog-pager-page {
+  min-width: 42px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.catalog-pager-step:hover:not(:disabled),
+.catalog-pager-page:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.catalog-pager-step:disabled,
+.catalog-pager-page:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.catalog-pager-page.is-current {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--white);
+  font-weight: 600;
+}
+
+.catalog-pager-gap {
+  padding: 0 4px;
+  color: rgba(23, 32, 29, 0.45);
+  user-select: none;
+}
+
+body.dark-mode .catalog-pager-gap {
+  color: rgba(255, 255, 255, 0.45);
+}
+
 .catalog-card {
   min-width: 0;
   overflow: hidden;
@@ -1207,6 +1279,15 @@ body.dark-mode .catalog-count span {
 
   .course-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* The pager has to stay usable on a phone, where "Previous 1 … 9 Next" is
+     already close to the full width. */
+  .catalog-pager-step,
+  .catalog-pager-page {
+    min-width: 38px;
+    padding: 7px 10px;
+    font-size: 0.86rem;
   }
 
   .catalog-card h3,
