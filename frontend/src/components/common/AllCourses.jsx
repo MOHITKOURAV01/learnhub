@@ -8,6 +8,7 @@ import axiosInstance from "./AxiosInstance";
 import BookmarkButton from "../bookmarks/BookmarkButton";
 import CatalogPager from "./CatalogPager";
 import useCourseCatalog from "../../hooks/useCourseCatalog";
+import useRatingSummaries from "../../hooks/useRatingSummaries";
 import {
   SORT_OPTIONS,
   describeRange,
@@ -89,6 +90,11 @@ const AllCourses = () => {
     searchPending,
     hasFilters,
   } = useCourseCatalog();
+
+  // One request for the ratings on this page, rather than one per card. Every
+  // CourseRatingBadge used to fetch its own, so opening the catalogue cost
+  // thirteen requests and twelve aggregations.
+  const { summaries } = useRatingSummaries(courses);
 
   const resetPaymentForm = () => {
     setCardDetails({
@@ -241,9 +247,10 @@ const AllCourses = () => {
 
                 <div className="course-instructor">
                   <CourseRatingBadge
-  courseId={course._id}
-  compact
-/>
+                    courseId={course._id}
+                    summary={summaries.get(String(course._id))}
+                    compact
+                  />
                   <span className="instructor-avatar" aria-hidden="true">
                     {(course.C_educator || "L").charAt(0).toUpperCase()}
                   </span>
