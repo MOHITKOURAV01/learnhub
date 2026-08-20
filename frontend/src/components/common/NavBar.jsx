@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect, useRef } from 'react'
 import { Navbar, Nav, Button, Container } from 'react-bootstrap';
 import { UserContext } from '../../App';
 import { NavLink } from 'react-router-dom';
+import { ROLES, isRole } from "../../lib/roles";
 import SavedCoursesNavLink from "../bookmarks/SavedCoursesNavLink";
 import { clearSession } from "./AxiosInstance";
 
@@ -47,7 +48,10 @@ const NavBar = ({ setSelectedComponent }) => {
       return () => document.removeEventListener('mousedown', handleClickOutside);
    }, []);
 
-   if (!user) {
+   // The context value is always an object, so the old `if (!user)` never
+   // fired. What actually needs guarding is userData, which is null whenever
+   // there is no session.
+   if (!user?.userData) {
       return null
    }
 
@@ -108,13 +112,17 @@ const NavBar = ({ setSelectedComponent }) => {
                    </div>
                  )}
                </div>
-                  {user.userData.type === 'Teacher' && (
+                  {/* These compared against 'Teacher', 'Admin' and 'Student'
+                      while the API stores the role lowercase, so none of the
+                      three links ever rendered — a teacher had no route to the
+                      Add Course form at all. */}
+                  {isRole(user.userData, ROLES.TEACHER) && (
                      <NavLink className="premium-btn" onClick={() => handleOptionClick('addcourse')}>Add Course</NavLink>
                   )}
-                  {user.userData.type === 'Admin' && (
+                  {isRole(user.userData, ROLES.ADMIN) && (
                      <NavLink className="premium-btn" onClick={() => handleOptionClick('cousres')}>Courses</NavLink>
                   )}
-                  {user.userData.type === 'Student' && (
+                  {isRole(user.userData, ROLES.STUDENT) && (
                      <NavLink className="premium-btn" onClick={() => handleOptionClick('enrolledcourese')}>Enrolled Courses</NavLink>
                   )}
                </Nav>
