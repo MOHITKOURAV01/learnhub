@@ -1467,3 +1467,20 @@ body.dark-mode .catalog-pager-gap {
   font-size: var(--nav-font-size);
   font-weight: var(--nav-font-weight);
 }
+/* Progress column in the student "My courses" table. The bar itself is a MUI
+   LinearProgress; this constrains its width so it does not stretch to whatever
+   the widest cell happens to be, and styles the count underneath it. */
+.enrolled-progress {
+  min-width: 160px;
+  max-width: 240px;
+}
+
+.enrolled-progress small {
+  color: #4a5568;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+}
+
+body.dark-mode .enrolled-progress small {
+  color: #cbd5e1;
+}
