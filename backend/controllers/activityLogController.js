@@ -1,6 +1,6 @@
 const ActivityLog = require("../schemas/activityLogModel");
 
-const ALLOWED_ACTIONS = new Set(["login", "logout"]);
+const ALLOWED_ACTIONS = new Set(["login", "logout", "login_failed"]);
 const ALLOWED_ROLES = new Set(["admin", "student", "teacher"]);
 const ALLOWED_SORTS = new Set(["newest", "oldest"]);
 

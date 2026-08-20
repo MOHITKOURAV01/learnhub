@@ -10,7 +10,9 @@ const activityLogSchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: ["login", "logout"],
+      // login_failed is what lets the log answer the question an audit log
+      // exists for: was there a burst of attempts against this account.
+      enum: ["login", "logout", "login_failed"],
       required: true,
       index: true,
     },
@@ -42,6 +44,9 @@ const activityLogSchema = new mongoose.Schema(
     },
   },
   {
+    // getActivityLogsController falls back to `log.createdAt` when `timestamp`
+    // is absent, and without this that fallback was always undefined.
+    timestamps: true,
     versionKey: false,
   },
 );

@@ -3,7 +3,7 @@ import { Navbar, Nav, Button, Container } from 'react-bootstrap';
 import { UserContext } from '../../App';
 import { NavLink } from 'react-router-dom';
 import SavedCoursesNavLink from "../bookmarks/SavedCoursesNavLink";
-import { clearSession } from "./AxiosInstance";
+import axiosInstance, { clearSession } from "./AxiosInstance";
 
 const NavBar = ({ setSelectedComponent }) => {
 
@@ -52,7 +52,18 @@ const NavBar = ({ setSelectedComponent }) => {
    }
 
 
-   const handleLogout = () => {
+   const handleLogout = async () => {
+      // Tell the server first, so the sign-out is recorded — the activity log
+      // has always had a "logout" action and a filter for it, and nothing ever
+      // wrote one. Best effort on purpose: signing out locally must not depend
+      // on the request succeeding, so a failure is swallowed and the session is
+      // cleared either way.
+      try {
+         await axiosInstance.post("/api/user/logout");
+      } catch {
+         // Already signed out, offline, or the server is down. Carry on.
+      }
+
       clearSession();
       window.location.href = "/";
    }

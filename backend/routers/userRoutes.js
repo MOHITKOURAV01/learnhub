@@ -5,6 +5,7 @@ const authMiddleware = require("../middlewares/authMiddleware");
 const {
   registerController,
   loginController,
+  logoutController,
   postCourseController,
   getAllCoursesUserController,
   getAllCoursesController,
@@ -91,6 +92,12 @@ router.get(
 router.post("/completemodule", authMiddleware, completeSectionController);
 
 router.get("/getallcoursesuser", authMiddleware, getEnrolledCoursesController);
+
+// Authenticated, unlike the rest of this group: an open endpoint would let
+// anyone write activity log rows for any account. There is no server-side
+// session to destroy — the token is stateless — so this exists purely so
+// signing out is recorded.
+router.post("/logout", authMiddleware, logoutController);
 
 router.post("/verify-otp", verifyOtpController);
 router.post("/forgot-password", forgotPasswordController);

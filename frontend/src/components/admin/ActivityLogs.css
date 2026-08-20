@@ -266,6 +266,13 @@
   background: rgba(239, 106, 75, 0.12);
 }
 
+/* A failed attempt is the row an admin is scanning for, so it reads as a
+   warning rather than as another neutral event. */
+.activity-action-login_failed {
+  color: #a12b2b;
+  background: rgba(200, 50, 50, 0.12);
+}
+
 .activity-pagination {
   margin-top: 18px;
   display: flex;
@@ -455,4 +462,9 @@ body.dark-mode .activity-action-login {
 body.dark-mode .activity-action-logout {
   color: #ff9a6a;
   background: rgba(255, 138, 112, 0.15);
+}
+
+body.dark-mode .activity-action-login_failed {
+  color: #ff8080;
+  background: rgba(255, 90, 90, 0.16);
 }
