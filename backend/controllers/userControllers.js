@@ -5,7 +5,7 @@ const sendEmail = require("../utils/sendEmail");
 const userSchema = require("../schemas/userModel");
 const courseSchema = require("../schemas/courseModel");
 const enrolledCourseSchema = require("../schemas/enrolledCourseModel");
-const ActivityLog = require('../schemas/activityLogModel');
+const { ACTIONS, recordActivity } = require("../utils/activityLog");
 const {
   formatValidationMessage,
   validateRegistration,
@@ -76,18 +76,38 @@ const registerController = async (req, res) => {
 
 ////for the login
 const loginController = async (req, res) => {
+  const attemptedEmail =
+    typeof req.body?.email === "string" ? req.body.email : "";
+
   try {
     // password is select: false on the schema, so ask for it explicitly.
     const user = await userSchema
       .findOne({ email: req.body.email })
       .select("+password");
     if (!user) {
+      // A failed attempt used to leave no trace at all, so the log could not
+      // answer the one question an audit log exists for. The attempted address
+      // is recorded; the attempted password is not, and never should be.
+      await recordActivity({
+        action: ACTIONS.LOGIN_FAILED,
+        req,
+        email: attemptedEmail,
+      });
+
       return res
         .status(200)
         .send({ message: "User not found", success: false });
     }
     const isMatch = await bcrypt.compare(req.body.password, user.password);
     if (!isMatch) {
+      await recordActivity({
+        action: ACTIONS.LOGIN_FAILED,
+        req,
+        userId: user._id,
+        role: user.type,
+        email: user.email,
+      });
+
       return res
         .status(200)
         .send({ message: "Invalid email or password", success: false });
@@ -103,8 +123,17 @@ const loginController = async (req, res) => {
       expiresIn: "1d",
     });
     user.password = undefined;
-    // Log login activity
-    await ActivityLog.create({ userId: user._id, action: 'login', role: user.type, email: user.email });
+
+    // Best effort: recordActivity swallows its own failures, so an unwritable
+    // audit row can no longer turn a successful sign-in into a 500.
+    await recordActivity({
+      action: ACTIONS.LOGIN,
+      req,
+      userId: user._id,
+      role: user.type,
+      email: user.email,
+    });
+
     return res.status(200).send({
       message: "Login success successfully",
       success: true,
@@ -117,6 +146,33 @@ const loginController = async (req, res) => {
       .status(500)
       .send({ success: false, message: `${error.message}` });
   }
+};
+
+/**
+ * POST /api/user/logout
+ *
+ * The activity log has always accepted a "logout" action and the admin table
+ * has always offered a Logout filter, but signing out was client-only —
+ * `clearSession()` and a redirect — so the filter matched nothing, ever.
+ *
+ * Authenticated, because an open endpoint would let anyone write log rows for
+ * any account. There is no server-side session to destroy: the token is
+ * stateless and the client discards it.
+ */
+const logoutController = async (req, res) => {
+  const user = req.user || {};
+
+  await recordActivity({
+    action: ACTIONS.LOGOUT,
+    req,
+    userId: user._id && user._id !== "admin" ? user._id : undefined,
+    role: user.type || user.role,
+    email: user.email,
+  });
+
+  return res
+    .status(200)
+    .send({ success: true, message: "Signed out" });
 };
 
 //get all courses
@@ -301,6 +357,7 @@ const resetPasswordController = async (req, res) => {
 module.exports = {
   registerController,
   loginController,
+  logoutController,
   getAllCoursesController,
   postCourseController,
   getAllCoursesUserController,

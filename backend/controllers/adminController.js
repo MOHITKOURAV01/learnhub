@@ -7,7 +7,7 @@ const userSchema = require("../schemas/userModel");
 const courseSchema = require("../schemas/courseModel");
 const enrolledCourseSchema = require("../schemas/enrolledCourseModel");
 const coursePaymentSchema = require("../schemas/coursePaymentModel");
-const ActivityLog = require("../schemas/activityLogModel");
+const { ACTIONS, recordActivity } = require("../utils/activityLog");
 const { removeUserDependents } = require("../utils/cascadeDelete");
 
 // Fields that must never leave the server. password is a bcrypt hash, and otp
@@ -97,6 +97,13 @@ const adminLoginController = async (req, res) => {
     const passwordMatches = await verifyAdminPassword(credentials, password);
 
     if (!usernameMatches || !passwordMatches) {
+      await recordActivity({
+        action: ACTIONS.LOGIN_FAILED,
+        req,
+        role: "admin",
+        email: typeof username === "string" ? username : "",
+      });
+
       return res
         .status(401)
         .send({ success: false, message: "Invalid admin credentials" });
@@ -108,9 +115,13 @@ const adminLoginController = async (req, res) => {
       expiresIn: "1d",
     });
 
-    await ActivityLog.create({
-      action: "login",
-      role: "Admin",
+    // Was `role: "Admin"` while userModel lowercases every other role, so the
+    // collection held both spellings of the same value. recordActivity
+    // normalises it, and carries the IP and User-Agent that were never stored.
+    await recordActivity({
+      action: ACTIONS.LOGIN,
+      req,
+      role: "admin",
       email: credentials.username,
     });
 
