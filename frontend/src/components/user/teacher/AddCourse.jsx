@@ -5,15 +5,21 @@ import axiosInstance from '../../common/AxiosInstance';
 
 const AddCourse = () => {
    const user = useContext(UserContext);
+   const [submitting, setSubmitting] = useState(false);
+   const [formError, setFormError] = useState('');
+
+   // The server takes the owner and the educator name from the bearer token, so
+   // neither is posted any more. It used to read `userId` straight out of this
+   // form, which meant the browser decided who owned the course.
    const [addCourse, setAddCourse] = useState({
-      userId: user.userData._id,
-      C_educator: '',
       C_title: '',
       C_categories: '',
       C_price: '',
       C_description: '',
       sections: [],
    });
+
+   const educatorName = user?.userData?.name || '';
 
    const handleChange = (e) => {
       const { name, value } = e.target;
@@ -61,25 +67,42 @@ const AddCourse = () => {
    };
 
    const handleSubmit = async (e) => {
-      e.preventDefault()
+      e.preventDefault();
+
+      // The server pairs each uploaded file with the S_title and S_description
+      // at the same position. Appending the text of a section that carries no
+      // file shifted every later section onto the wrong video.
+      const sectionsWithVideo = addCourse.sections.filter(
+         (section) => section.S_content instanceof File,
+      );
+
+      if (sectionsWithVideo.length === 0) {
+         setFormError('Add at least one section with an .mp4 video.');
+         return;
+      }
+
+      if (sectionsWithVideo.length !== addCourse.sections.length) {
+         setFormError('Every section needs a video before the course can be created.');
+         return;
+      }
+
+      setFormError('');
+
       const formData = new FormData();
+
       Object.keys(addCourse).forEach((key) => {
-         if (key === 'sections') {
-            addCourse[key].forEach((section, index) => {
-               if (section.S_content instanceof File) {
-                  formData.append(`S_content`, section.S_content);
-               }
-               formData.append(`S_title`, section.S_title);
-               formData.append(`S_description`, section.S_description);
-            });
-         } else {
+         if (key !== 'sections') {
             formData.append(key, addCourse[key]);
          }
       });
 
-      for (const [key, value] of formData.entries()) {
-         console.log(`${key}:`, value);
-      }
+      sectionsWithVideo.forEach((section) => {
+         formData.append('S_content', section.S_content);
+         formData.append('S_title', section.S_title);
+         formData.append('S_description', section.S_description);
+      });
+
+      setSubmitting(true);
 
       try {
          const res = await axiosInstance.post('/api/user/addcourse', formData, {
@@ -88,18 +111,27 @@ const AddCourse = () => {
             },
          });
 
-         if (res.status === 201) {
-            if (res.data.success) {
-               alert(res.data.message);
-            } else {
-               alert('Failed to create course');
-            }
+         if (res.data.success) {
+            alert(res.data.message);
+            setAddCourse({
+               C_title: '',
+               C_categories: '',
+               C_price: '',
+               C_description: '',
+               sections: [],
+            });
          } else {
-            alert('Unexpected response status: ' + res.status);
+            setFormError(res.data.message || 'Failed to create course.');
          }
       } catch (error) {
-         console.error('An error occurred:', error);
-         alert('An error occurred while creating the course, only .mp4 videos can be uploaded');
+         // The API answers 400 with a readable reason now, so show it instead
+         // of guessing that the upload must have been the wrong file type.
+         setFormError(
+            error.response?.data?.message ||
+               'The course could not be created. Only .mp4 videos can be uploaded.',
+         );
+      } finally {
+         setSubmitting(false);
       }
    };
 
@@ -123,9 +155,21 @@ const AddCourse = () => {
             </Row>
 
             <Row className="mb-3">
-               <Form.Group as={Col} controlId="formGridTitle">
+               <Form.Group as={Col} controlId="formGridEducator">
                   <Form.Label>Course Educator</Form.Label>
-                  <Form.Control name='C_educator' value={addCourse.C_educator} onChange={handleChange} type="text" placeholder="Enter Course Educator" required />
+                  {/* Read-only: the server credits the signed-in account. The
+                      editable version let a course be published under anyone's
+                      name. */}
+                  <Form.Control
+                     value={educatorName}
+                     type="text"
+                     readOnly
+                     disabled
+                     aria-describedby="educatorHelp"
+                  />
+                  <Form.Text id="educatorHelp" muted>
+                     Courses are published under your account name.
+                  </Form.Text>
                </Form.Group>
                <Form.Group as={Col} controlId="formGridTitle">
                   <Form.Label>Course Price(Rs.)</Form.Label>
@@ -192,8 +236,14 @@ const AddCourse = () => {
                </Col>
             </Row>
 
-            <Button variant="primary" type="submit">
-               Submit
+            {formError ? (
+               <div className="alert alert-danger py-2" role="alert">
+                  {formError}
+               </div>
+            ) : null}
+
+            <Button variant="primary" type="submit" disabled={submitting}>
+               {submitting ? 'Creating…' : 'Submit'}
             </Button>
          </Form>
       </div>

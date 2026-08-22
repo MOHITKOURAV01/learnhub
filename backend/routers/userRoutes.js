@@ -38,6 +38,9 @@ const {
 const {
   createCourseVideoUploadMiddleware,
 } = require("../utils/courseVideoUploadMiddleware");
+const {
+  preserveAuthIdentity,
+} = require("../middlewares/preserveAuthIdentity");
 
 const router = express.Router();
 
@@ -53,11 +56,16 @@ router.post("/register", registerController);
 
 router.post("/login", loginController);
 
+// Multer replaces req.body, so the userId authMiddleware wrote there does not
+// survive the upload. preserveAuthIdentity puts the token's id back before the
+// controller runs; the controller itself reads req.user and does not depend on
+// it, but nothing mounted after an upload should see a client-supplied userId.
 router.post(
   "/addcourse",
   authMiddleware,
   checkRole(["teacher", "admin"]),
   courseVideoUpload,
+  preserveAuthIdentity,
   postCourseController
 );
 
