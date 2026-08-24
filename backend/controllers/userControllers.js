@@ -11,11 +11,11 @@ const {
   validateRegistration,
 } = require("../utils/registrationValidation");
 const {
-  getTeacherCoursesController,
-} = require("./teacherCoursesController");
-const {
   postCourseController,
 } = require("./courseCreationController");
+const {
+  getTeacherCoursesController,
+} = require("./teacherCoursesController");
 
 // The route wiring imports this from teacherCoursesController directly. The
 // aggregator keeps re-exporting it under its original name so nothing that
