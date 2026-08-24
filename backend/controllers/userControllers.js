@@ -11,6 +11,12 @@ const {
   validateRegistration,
 } = require("../utils/registrationValidation");
 const {
+  VERIFICATION,
+  burnComparison,
+  issueCredential,
+  verifyCredential,
+} = require("../utils/otpCredentials");
+const {
   postCourseController,
 } = require("./courseCreationController");
 const {
@@ -42,9 +48,11 @@ const registerController = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(value.password, salt);
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    // The code is generated from crypto.randomInt and only the bcrypt hash of
+    // it is persisted. The plaintext exists for the length of this handler and
+    // goes to the mailbox; it is never written to the database, so a copy of
+    // the collection is not a set of live credentials (#95).
+    const credential = await issueCredential();
 
     const newUser = new userSchema({
       name: value.name,
@@ -52,8 +60,9 @@ const registerController = async (req, res) => {
       password: hashedPassword,
       type: value.type,
       isVerified: false,
-      otp,
-      otpExpiry,
+      otp: credential.hash,
+      otpExpiry: credential.expiresAt,
+      otpAttempts: 0,
     });
     await newUser.save();
 
@@ -61,8 +70,8 @@ const registerController = async (req, res) => {
     await sendEmail({
       to: value.email,
       subject: "Verify your LearnHub Account",
-      text: `Your OTP code for verification is: ${otp}. This code is valid for 10 minutes.`,
-      html: `<p>Your OTP code for verification is: <strong>${otp}</strong>.</p><p>This code is valid for 10 minutes.</p>`,
+      text: `Your OTP code for verification is: ${credential.code}. This code is valid for 10 minutes.`,
+      html: `<p>Your OTP code for verification is: <strong>${credential.code}</strong>.</p><p>This code is valid for 10 minutes.</p>`,
     });
 
     return res.status(201).send({ message: "Registration initiated. Please verify the OTP sent to your email.", success: true });
@@ -260,32 +269,95 @@ const sendCourseContentController = async (req, res) => {
 // Implemented in enrolledCoursesController so the batched lookup, the
 // deleted-course filtering and the progress summary are unit testable.
 
+// One answer for every way verification can fail: no such address, no pending
+// code, the wrong code, an expired code, too many attempts. Distinguishing them
+// is what let an unauthenticated caller confirm or deny any email address in a
+// single request — forgotPasswordController in this same file already answers
+// uniformly, and these two did not (#95).
+const OTP_FAILURE_MESSAGE = "Invalid or expired OTP";
+const RESET_FAILURE_MESSAGE = "Invalid or expired reset token/OTP";
+
+/**
+ * Clears a credential and its attempt counter.
+ *
+ * Used on every terminal outcome — spent, expired, or locked out — so a code
+ * cannot be worked on after it has stopped being usable.
+ */
+const clearCredential = async (user, prefix) => {
+  await userSchema.updateOne(
+    { _id: user._id },
+    {
+      $unset: {
+        [prefix]: "",
+        [`${prefix}Expiry`]: "",
+        [`${prefix}Attempts`]: "",
+      },
+    },
+  );
+};
+
 const verifyOtpController = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp } = req.body || {};
     if (!email || !otp) {
       return res.status(400).send({ message: "Email and OTP are required", success: false });
     }
+
     const user = await userSchema
       .findOne({ email })
-      .select("+otp +otpExpiry");
+      .select("+otp +otpExpiry +otpAttempts");
+
     if (!user) {
-      return res.status(404).send({ message: "User not found", success: false });
+      // Same status, same message, and one bcrypt comparison's worth of time —
+      // otherwise the absence of a comparison is the new oracle.
+      await burnComparison();
+
+      return res
+        .status(400)
+        .send({ message: OTP_FAILURE_MESSAGE, success: false });
     }
+
     if (user.isVerified) {
+      // Verified accounts should not be carrying a live code around.
+      if (user.otp) {
+        await clearCredential(user, "otp");
+      }
+
       return res.status(200).send({ message: "User already verified", success: true });
     }
-    if (user.otp !== otp || user.otpExpiry < Date.now()) {
-      return res.status(400).send({ message: "Invalid or expired OTP", success: false });
+
+    const result = await verifyCredential(
+      { hash: user.otp, expiresAt: user.otpExpiry, attempts: user.otpAttempts },
+      otp,
+    );
+
+    if (result.status !== VERIFICATION.OK) {
+      if (result.shouldClear) {
+        await clearCredential(user, "otp");
+      } else {
+        await userSchema.updateOne(
+          { _id: user._id },
+          { $set: { otpAttempts: result.attempts } },
+        );
+      }
+
+      return res
+        .status(400)
+        .send({ message: OTP_FAILURE_MESSAGE, success: false });
     }
-    user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpiry = undefined;
-    await user.save();
+
+    await userSchema.updateOne(
+      { _id: user._id },
+      {
+        $set: { isVerified: true },
+        $unset: { otp: "", otpExpiry: "", otpAttempts: "" },
+      },
+    );
+
     return res.status(200).send({ message: "Email verified successfully", success: true });
   } catch (error) {
     console.error(error);
-    return res.status(500).send({ success: false, message: error.message });
+    return res.status(500).send({ success: false, message: "Unable to verify the code" });
   }
 };
 
@@ -300,18 +372,26 @@ const forgotPasswordController = async (req, res) => {
       return res.status(200).send({ message: "If that email exists, an OTP/reset token has been sent.", success: true });
     }
     
-    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
-    const resetTokenExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    // Issuing a new code supersedes any previous one, and resets the attempt
+    // counter with it — otherwise a locked-out account could never recover.
+    const credential = await issueCredential();
 
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = resetTokenExpiry;
-    await user.save();
+    await userSchema.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          resetToken: credential.hash,
+          resetTokenExpiry: credential.expiresAt,
+          resetTokenAttempts: 0,
+        },
+      },
+    );
 
     await sendEmail({
       to: email,
       subject: "LearnHub Password Reset Request",
-      text: `Your password reset code is: ${resetToken}. This code is valid for 10 minutes.`,
-      html: `<p>Your password reset code is: <strong>${resetToken}</strong>.</p><p>This code is valid for 10 minutes.</p>`,
+      text: `Your password reset code is: ${credential.code}. This code is valid for 10 minutes.`,
+      html: `<p>Your password reset code is: <strong>${credential.code}</strong>.</p><p>This code is valid for 10 minutes.</p>`,
     });
 
     return res.status(200).send({ message: "If that email exists, an OTP/reset token has been sent.", success: true });
@@ -332,21 +412,63 @@ const resetPasswordController = async (req, res) => {
     }
     const user = await userSchema
       .findOne({ email })
-      .select("+resetToken +resetTokenExpiry");
+      .select("+resetToken +resetTokenExpiry +resetTokenAttempts");
+
     if (!user) {
-      return res.status(404).send({ message: "User not found", success: false });
+      // 404 "User not found" here confirmed the address to anyone who asked.
+      await burnComparison();
+
+      return res
+        .status(400)
+        .send({ message: RESET_FAILURE_MESSAGE, success: false });
     }
-    if (user.resetToken !== token || user.resetTokenExpiry < Date.now()) {
-      return res.status(400).send({ message: "Invalid or expired reset token/OTP", success: false });
+
+    const result = await verifyCredential(
+      {
+        hash: user.resetToken,
+        expiresAt: user.resetTokenExpiry,
+        attempts: user.resetTokenAttempts,
+      },
+      token,
+    );
+
+    if (result.status !== VERIFICATION.OK) {
+      if (result.shouldClear) {
+        await clearCredential(user, "resetToken");
+      } else {
+        await userSchema.updateOne(
+          { _id: user._id },
+          { $set: { resetTokenAttempts: result.attempts } },
+        );
+      }
+
+      return res
+        .status(400)
+        .send({ message: RESET_FAILURE_MESSAGE, success: false });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
-    user.password = hashedPassword;
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
-    user.isVerified = true; // Auto-verify email
-    await user.save();
+
+    // Holding the code proves control of the mailbox, so the address is marked
+    // verified here. This was already the behaviour; it is stated now rather
+    // than left as an unexplained side effect.
+    await userSchema.updateOne(
+      { _id: user._id },
+      {
+        $set: { password: hashedPassword, isVerified: true },
+        $unset: {
+          resetToken: "",
+          resetTokenExpiry: "",
+          resetTokenAttempts: "",
+          // A password change ends any pending verification code too.
+          otp: "",
+          otpExpiry: "",
+          otpAttempts: "",
+        },
+      },
+    );
+
     return res.status(200).send({ message: "Password has been successfully updated", success: true });
   } catch (error) {
     console.error(error);
