@@ -12,6 +12,7 @@ import NavBar from '../../common/NavBar';
 import Toast from '../../common/Toast';
 import BookmarkButton from '../../bookmarks/BookmarkButton';
 import CourseReviews from '../../reviews/CourseReviews';
+import '../../../styles/course-player.css';
 import {
   PROGRESS_STATES,
   describeProgress,
