@@ -7,12 +7,18 @@ const validateObjectId = require("../middlewares/validateObjectId");
 const {
   adminLoginController,
   adminResetPasswordController,
-  deleteCourseController,
   deleteUserController,
   getAllCoursesController,
   getAllEnrolledCoursesController,
   getAllUsersController,
 } = require("../controllers/adminController");
+
+// The same controller the teacher route uses. It has always accepted an admin
+// (`["teacher", "admin"].includes(role)`) and it removes the section videos and
+// the rows that referenced the course; the copy in adminController did neither.
+const {
+  deleteCourseController,
+} = require("../controllers/courseDeletionController");
 
 const {
   getAdminPaymentsController,

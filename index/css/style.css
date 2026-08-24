@@ -97,6 +97,50 @@
       color: var(--blue);
       text-transform: uppercase;
       letter-spacing: 0.08em;
+
+      font-size: clamp(0.6rem, 4vw, 1.25rem);
+      line-height: 1.4;
+
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+
+      max-width: 100%;
+      box-sizing: border-box;
+      padding-inline: 0.5rem;
+      text-align: center;
+    }
+
+    @media(max-width:320px){
+      .terminal-title {    
+        font-size: 0.6rem;
+        letter-spacing: 0.04rem;
+        padding-inline: 0.2rem;
+    }
+    }
+
+    @media(min-width: 321px) and (max-width: 360px){
+      .terminal-title { 
+        font-size: 0.7rem;
+        letter-spacing: 0.05 ;
+        padding-inline: 0.2rem;
+      }
+    }
+
+    @media(min-width: 361px) and (max-width: 393px){
+      .terminal-title { 
+        font-size: 0.8rem;
+        letter-spacing: 0.05rem;
+        padding-inline: 0.2rem;
+      }
+    }
+
+    @media(min-width: 394px) and (max-width: 430px){
+      .terminal-title { 
+        font-size: 0.9rem;
+        letter-spacing: 0.05rem;
+        padding-inline: 0.2rem;
+      }
     }
 
     .terminal-meta {

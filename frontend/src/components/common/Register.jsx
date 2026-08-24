@@ -15,6 +15,7 @@ import VerifyEmailPanel, {
    readPendingVerification,
    writePendingVerification,
 } from './VerifyEmailPanel';
+import { ROLES, roleLabel } from '../../lib/roles';
 
 
 
@@ -43,9 +44,12 @@ const Register = () => {
       writePendingVerification(pendingEmail);
    }, [pendingEmail]);
 
-   const handleSelect = (eventKey) => {
-      setSelectedOption(eventKey);
-      setData({ ...data, type: eventKey });
+   // The stored value and the label on the toggle are not the same thing: the
+   // API lowercases `type` on write, so posting "Student" only meant the
+   // capitalisation survived as far as the schema and then vanished.
+   const handleSelect = (role) => {
+      setSelectedOption(roleLabel(role));
+      setData({ ...data, type: role });
    };
 
    const handleChange = (e) => {
@@ -170,8 +174,12 @@ const Register = () => {
                            </Dropdown.Toggle>
 
                            <Dropdown.Menu>
-                              <Dropdown.Item onClick={() => handleSelect("Student")}>Student</Dropdown.Item>
-                              <Dropdown.Item onClick={() => handleSelect("Teacher")}>Teacher</Dropdown.Item>
+                              {/* The API lowercases `type` on write, so post
+                                  the value it actually stores rather than a
+                                  spelling that only survives as far as the
+                                  schema. */}
+                              <Dropdown.Item onClick={() => handleSelect(ROLES.STUDENT)}>Student</Dropdown.Item>
+                              <Dropdown.Item onClick={() => handleSelect(ROLES.TEACHER)}>Teacher</Dropdown.Item>
                            </Dropdown.Menu>
                         </Dropdown>
                         <Box mt={2}>

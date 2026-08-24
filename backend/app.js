@@ -4,12 +4,40 @@ const dotenv = require("dotenv");
 const path = require("path");
 const fs = require("fs");
 
+const { buildCorsOptions } = require("./config/cors");
+const {
+  createSecurityHeaders,
+  securityHeaderSettingsFromEnv,
+} = require("./middlewares/securityHeaders");
+const { createNotFoundHandler } = require("./middlewares/notFoundHandler");
+const { createErrorHandler } = require("./middlewares/errorHandler");
+const { createHealthRouter } = require("./routers/healthRoutes");
+
 dotenv.config();
 
 const app = express();
 
-app.use(express.json());
-app.use(cors());
+// Behind a proxy or load balancer, req.ip and req.secure are only meaningful
+// once Express is told to read the forwarded headers. The rate limiter and the
+// HSTS check both depend on this.
+if (process.env.TRUST_PROXY === "true") {
+  app.set("trust proxy", 1);
+}
+
+// Hide the framework banner; it tells an attacker what to target and nothing
+// useful to anybody else.
+app.disable("x-powered-by");
+
+app.use(createSecurityHeaders(securityHeaderSettingsFromEnv()));
+
+// An explicit, configurable body limit. Oversized and malformed bodies raise
+// typed errors that the error handler below turns into 413 and 400.
+const jsonBodyLimit = process.env.JSON_BODY_LIMIT || "1mb";
+app.use(express.json({ limit: jsonBodyLimit }));
+app.use(express.urlencoded({ extended: true, limit: jsonBodyLimit }));
+
+// Only the origins listed in FRONTEND_URL, instead of reflecting every caller.
+app.use(cors(buildCorsOptions()));
 
 const uploadsDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) {
@@ -22,6 +50,8 @@ if (!fs.existsSync(uploadsDir)) {
 // published the filenames, so no guessing was involved. Section videos are
 // served by GET /api/user/coursevideo/:courseid/:sectionIndex, which checks a
 // playback token minted only after the enrolment check in /coursecontent.
+
+app.use("/api/health", createHealthRouter());
 
 app.get("/api/admin", (req, res) => {
   res.sendFile(path.join(__dirname, "admin.html"));
@@ -36,20 +66,10 @@ app.use("/api/user", require("./routers/userRoutes"));
 app.use("/api/bookmarks", require("./routers/courseBookmarkRoutes"));
 app.use("/api/reviews", require("./routers/courseReviewRoutes"));
 
-app.use((err, req, res, next) => {
-  if (res.headersSent) return next(err);
+// Unmatched /api routes answer with the project's JSON envelope rather than
+// Express's default HTML page.
+app.use(createNotFoundHandler());
 
-  if (err && err.name === "MulterError") {
-    return res.status(400).json({
-      success: false,
-      message: err.message || "Upload failed",
-    });
-  }
-
-  return res.status(500).json({
-    success: false,
-    message: "Internal server error",
-  });
-});
+app.use(createErrorHandler());
 
 module.exports = app;

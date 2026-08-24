@@ -185,11 +185,12 @@ test("failed course creation removes uploaded files", async () => {
     logger: { error() {} },
   });
 
+  // The author is read from req.user now; a body-supplied userId is ignored.
+  // course-authorship.test.js covers why.
   const req = {
     files: [{ filename: "one.mp4" }],
+    user: { _id: "teacher-1", name: "Teacher", type: "teacher" },
     body: {
-      userId: "teacher-1",
-      C_educator: "Teacher",
       C_title: "Course",
       C_categories: "Programming",
       C_price: "0",
