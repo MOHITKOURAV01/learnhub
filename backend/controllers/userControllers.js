@@ -19,6 +19,11 @@ const {
 const {
   getCourseContentController,
 } = require("./courseContentController");
+
+// The route wiring imports this from courseContentController directly. The
+// aggregator keeps re-exporting it under its original name so nothing that
+// still reads it from here has to change.
+const sendCourseContentController = getCourseContentController;
 //////////for registering/////////////////////////////
 const registerController = async (req, res) => {
   try {
@@ -331,7 +336,7 @@ module.exports = {
   getAllCoursesController,
   postCourseController,
   getAllCoursesUserController,
-  sendCourseContentController: getCourseContentController,
+  sendCourseContentController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
