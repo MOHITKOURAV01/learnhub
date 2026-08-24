@@ -1,0 +1,41 @@
+/* Admin list toolbars (#96).
+
+   Kept out of App.css deliberately: four branches were each appending a block
+   to the end of that file, which conflicts on every pair of them. A feature
+   stylesheet imported by the component that needs it does not.
+
+   The toolbar reuses the catalogue's `catalog-search` and `catalog-filter`
+   classes, which stay in App.css, so the three search boxes in the app look
+   and behave the same. Only what is new here lives in this file.
+*/
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.admin-toolbar .catalog-search {
+  flex: 1 1 260px;
+}
+
+.admin-summary {
+  margin: 0 0 14px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+body.dark-mode .admin-summary {
+  color: #cbd5f5;
+}
+
+.admin-search-pending {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.admin-inline-button {
+  margin-left: 12px;
+}

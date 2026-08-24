@@ -16,6 +16,7 @@ import axiosInstance from '../common/AxiosInstance';
 import CatalogPager from '../common/CatalogPager';
 import Toast from '../common/Toast';
 import useAdminList from '../../hooks/useAdminList';
+import '../../styles/admin-lists.css';
 import {
   COURSE_SORT_OPTIONS,
   buildCourseParams,

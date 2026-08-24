@@ -18,6 +18,7 @@ import Toast from '../common/Toast';
 import PaymentRecords from './PaymentRecords';
 import ActivityLogs from './ActivityLogs';
 import useAdminList from '../../hooks/useAdminList';
+import '../../styles/admin-lists.css';
 import {
   USER_ROLE_OPTIONS,
   USER_SORT_OPTIONS,
