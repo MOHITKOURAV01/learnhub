@@ -9,7 +9,6 @@ const {
   postCourseController,
   getAllCoursesUserController,
   getAllCoursesController,
-  sendCourseContentController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
@@ -24,6 +23,9 @@ const {
 const {
   completeSectionController,
 } = require("../controllers/progressController");
+const {
+  getCourseContentController,
+} = require("../controllers/courseContentController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
@@ -94,7 +96,7 @@ router.post(
 router.get(
   "/coursecontent/:courseid",
   authMiddleware,
-  sendCourseContentController
+  getCourseContentController
 );
 
 router.post("/completemodule", authMiddleware, completeSectionController);

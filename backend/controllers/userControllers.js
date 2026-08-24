@@ -16,6 +16,9 @@ const {
 const {
   getAllCoursesController,
 } = require("./courseListingController");
+const {
+  getCourseContentController,
+} = require("./courseContentController");
 //////////for registering/////////////////////////////
 const registerController = async (req, res) => {
   try {
@@ -214,43 +217,10 @@ const getAllCoursesUserController = async (req, res) => {
 // enrolled counter can be unit tested with injected models.
 
 /////sending the course content for learning to student
-const sendCourseContentController = async (req, res) => {
-  const { courseid } = req.params;
-
-  try {
-    const course = await courseSchema.findById({ _id: courseid });
-    if (!course)
-      return res.status(404).send({
-        success: false,
-        message: "No such course found",
-      });
-
-    const user = await enrolledCourseSchema.findOne({
-      userId: req.body.userId,
-      courseId: courseid, // Add the condition to match the courseId
-    });
-
-    if (!user) {
-      return res.status(404).send({
-        success: false,
-        message: "User not found",
-      });
-    } else {
-      return res.status(200).send({
-        success: true,
-        courseContent: course.sections,
-        completeModule: user.progress,
-        certficateData: user,
-      });
-    }
-  } catch (error) {
-    console.error("An error occurred:", error);
-    return res.status(500).send({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-};
+// Implemented in courseContentController so the enrolment is resolved from the
+// authenticated identity, a caller who is not enrolled gets a 403 rather than
+// "User not found", and the progress summary comes from the same helpers My
+// Courses uses instead of being recomputed in the browser (#93).
 
 //////////////completing module////////
 // Implemented in progressController so the section is validated against the
@@ -361,7 +331,7 @@ module.exports = {
   getAllCoursesController,
   postCourseController,
   getAllCoursesUserController,
-  sendCourseContentController,
+  sendCourseContentController: getCourseContentController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
