@@ -5,6 +5,44 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LearnHub</title>
+    <script>
+      // Applies the stored theme before the first paint.
+      //
+      // The class used to be added inside a React useEffect, which runs after
+      // the browser has already painted, so every full load of a signed-in
+      // page rendered light and then repainted dark (#97).
+      //
+      // <body> does not exist yet, so only <html> can be marked here; the
+      // provider adds `body.dark-mode` — what the stylesheets are keyed on —
+      // as soon as React mounts. The rule for `html.dark-mode body` in App.css
+      // covers the window in between.
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+
+          if (stored !== 'light' && stored !== 'dark' && stored !== 'system') {
+            // Carry over the boolean key NavBar used.
+            var legacy = localStorage.getItem('darkMode');
+            stored = legacy === 'true' ? 'dark' : legacy === 'false' ? 'light' : 'system';
+          }
+
+          var dark =
+            stored === 'dark' ||
+            (stored === 'system' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+          var root = document.documentElement;
+
+          root.classList.toggle('dark-mode', dark);
+          root.dataset.theme = dark ? 'dark' : 'light';
+          root.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (error) {
+          // Storage can throw in a private window or a sandboxed frame. A
+          // light page is a fine outcome; a blank one is not.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
