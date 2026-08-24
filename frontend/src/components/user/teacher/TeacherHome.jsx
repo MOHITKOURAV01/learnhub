@@ -5,6 +5,7 @@ import axiosInstance from '../../common/AxiosInstance';
 import CatalogPager from '../../common/CatalogPager';
 import Toast from '../../common/Toast';
 import useTeacherCourses from '../../../hooks/useTeacherCourses';
+import '../../../styles/teacher-dashboard.css';
 import {
   SORT_OPTIONS,
   describeEnrolled,
