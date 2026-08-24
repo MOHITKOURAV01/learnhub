@@ -10,6 +10,7 @@ import {
   writeStoredPreference,
 } from '../lib/theme';
 import { ThemeContext } from './themeContext';
+import '../styles/theme.css';
 
 // Owns the theme for the whole application, signed in or out (#97).
 //
