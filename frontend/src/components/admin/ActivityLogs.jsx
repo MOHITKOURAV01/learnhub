@@ -32,6 +32,17 @@ const formatRole = (role) => {
   return role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
 };
 
+// The stored action is a slug; "login_failed" in a badge reads as a database
+// column rather than as an event.
+const ACTIVITY_LABELS = {
+  login: "Login",
+  logout: "Logout",
+  login_failed: "Failed login",
+};
+
+const activityLabel = (activity) =>
+  ACTIVITY_LABELS[activity] || activity || "Unknown";
+
 const deviceLabel = (userAgent) => {
   if (!userAgent) return "Not recorded";
 
@@ -212,6 +223,7 @@ const ActivityLogs = () => {
             <option value="">All activity</option>
             <option value="login">Login</option>
             <option value="logout">Logout</option>
+            <option value="login_failed">Failed login</option>
           </select>
         </label>
 
@@ -340,7 +352,7 @@ const ActivityLogs = () => {
                       <span
                         className={`activity-action-badge activity-action-${log.activity}`}
                       >
-                        {log.activity}
+                        {activityLabel(log.activity)}
                       </span>
                     </td>
                     <td data-label="Date and time">
