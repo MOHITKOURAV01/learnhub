@@ -2,6 +2,14 @@ const mongoose = require("mongoose");
 const CourseReview = require("../schemas/courseReviewModel");
 const Course = require("../schemas/courseModel");
 const EnrolledCourse = require("../schemas/enrolledCourseModel");
+const {
+  MAX_SUMMARY_IDS,
+  buildSummaryMap,
+  buildSummaryPipeline,
+  emptySummary,
+  formatSummaryRow,
+  normalizeCourseIds,
+} = require("../utils/reviewSummaries");
 
 const ALLOWED_SORTS = new Set(["newest", "oldest", "highest", "lowest"]);
 
@@ -32,37 +40,23 @@ const serializeReview = (review, currentUserId = null) => ({
     String(review.userId?._id || review.userId) === String(currentUserId),
 });
 
+// One course. Same pipeline as the batch path, so the two cannot drift apart.
 const getSummary = async (courseId) => {
-  const objectId = new mongoose.Types.ObjectId(courseId);
-  const [summary] = await CourseReview.aggregate([
-    { $match: { courseId: objectId } },
-    {
-      $group: {
-        _id: "$courseId",
-        averageRating: { $avg: "$rating" },
-        totalReviews: { $sum: 1 },
-        oneStar: { $sum: { $cond: [{ $eq: ["$rating", 1] }, 1, 0] } },
-        twoStar: { $sum: { $cond: [{ $eq: ["$rating", 2] }, 1, 0] } },
-        threeStar: { $sum: { $cond: [{ $eq: ["$rating", 3] }, 1, 0] } },
-        fourStar: { $sum: { $cond: [{ $eq: ["$rating", 4] }, 1, 0] } },
-        fiveStar: { $sum: { $cond: [{ $eq: ["$rating", 5] }, 1, 0] } },
-      },
-    },
-  ]);
+  const [summary] = await CourseReview.aggregate(
+    buildSummaryPipeline([String(courseId)]),
+  );
 
-  return {
-    averageRating: summary
-      ? Number(summary.averageRating.toFixed(1))
-      : 0,
-    totalReviews: summary?.totalReviews || 0,
-    distribution: {
-      1: summary?.oneStar || 0,
-      2: summary?.twoStar || 0,
-      3: summary?.threeStar || 0,
-      4: summary?.fourStar || 0,
-      5: summary?.fiveStar || 0,
-    },
-  };
+  return summary ? formatSummaryRow(summary) : emptySummary();
+};
+
+// Many courses, one indexed pass. CourseRatingBadge used to call the single
+// endpoint once per card, so a twelve-card catalogue page ran twelve of these.
+const getSummariesFor = async (courseIds) => {
+  if (courseIds.length === 0) return {};
+
+  const rows = await CourseReview.aggregate(buildSummaryPipeline(courseIds));
+
+  return buildSummaryMap(courseIds, rows);
 };
 
 const ensureCourseExists = async (courseId) => {
@@ -208,6 +202,34 @@ const listReviews = async (req, res) => {
     return res.status(500).send({
       success: false,
       message: "Unable to retrieve course reviews.",
+    });
+  }
+};
+
+/**
+ * GET /api/reviews/summaries?courseIds=a,b,c
+ *
+ * Registered before GET /:courseId in the router, or "summaries" would match
+ * the parameter and this route would never be reached — the same shadowing
+ * that made DELETE /api/admin/deleteuser unauthenticated in #53.
+ */
+const getRatingSummaries = async (req, res) => {
+  try {
+    const courseIds = normalizeCourseIds(req.query.courseIds);
+
+    // An empty or entirely unusable list is not an error: the client asked
+    // about no courses and gets summaries for no courses.
+    return res.status(200).send({
+      success: true,
+      data: await getSummariesFor(courseIds),
+      requested: courseIds.length,
+      limit: MAX_SUMMARY_IDS,
+    });
+  } catch (error) {
+    console.error("Unable to retrieve rating summaries:", error);
+    return res.status(500).send({
+      success: false,
+      message: "Unable to retrieve rating summaries.",
     });
   }
 };
@@ -365,6 +387,7 @@ const getMyReview = async (req, res) => {
 module.exports = {
   createReview,
   listReviews,
+  getRatingSummaries,
   getRatingSummary,
   updateReview,
   deleteReview,

@@ -7,7 +7,8 @@ const userSchema = require("../schemas/userModel");
 const courseSchema = require("../schemas/courseModel");
 const enrolledCourseSchema = require("../schemas/enrolledCourseModel");
 const coursePaymentSchema = require("../schemas/coursePaymentModel");
-const ActivityLog = require("../schemas/activityLogModel");
+const { ACTIONS, recordActivity } = require("../utils/activityLog");
+const { removeUserDependents } = require("../utils/cascadeDelete");
 
 // Fields that must never leave the server. password is a bcrypt hash, and otp
 // and resetToken are live credentials: anything holding them can complete
@@ -96,6 +97,13 @@ const adminLoginController = async (req, res) => {
     const passwordMatches = await verifyAdminPassword(credentials, password);
 
     if (!usernameMatches || !passwordMatches) {
+      await recordActivity({
+        action: ACTIONS.LOGIN_FAILED,
+        req,
+        role: "admin",
+        email: typeof username === "string" ? username : "",
+      });
+
       return res
         .status(401)
         .send({ success: false, message: "Invalid admin credentials" });
@@ -107,9 +115,13 @@ const adminLoginController = async (req, res) => {
       expiresIn: "1d",
     });
 
-    await ActivityLog.create({
-      action: "login",
-      role: "Admin",
+    // Was `role: "Admin"` while userModel lowercases every other role, so the
+    // collection held both spellings of the same value. recordActivity
+    // normalises it, and carries the IP and User-Agent that were never stored.
+    await recordActivity({
+      action: ACTIONS.LOGIN,
+      req,
+      role: "admin",
       email: credentials.username,
     });
 
@@ -219,28 +231,10 @@ const getAllCoursesController = async (req, res) => {
   }
 };
 
-const deleteCourseController = async (req, res) => {
-  const { courseid } = req.params;
-
-  try {
-    const course = await courseSchema.findByIdAndDelete(courseid);
-
-    if (!course) {
-      return res
-        .status(404)
-        .send({ success: false, message: "Course not found" });
-    }
-
-    return res
-      .status(200)
-      .send({ success: true, message: "Course deleted successfully" });
-  } catch (error) {
-    console.error("Error in deleting course:", error.message);
-    return res
-      .status(500)
-      .send({ success: false, message: "Failed to delete course" });
-  }
-};
+// DELETE /api/admin/deletecourse/:courseid is routed at courseDeletionController
+// instead. That one already enforces ownership and removes the section videos,
+// and it has always accepted an admin; this file held a second, weaker copy
+// that skipped both.
 
 const deleteUserController = async (req, res) => {
   const { userid } = req.params;
@@ -252,9 +246,16 @@ const deleteUserController = async (req, res) => {
       return res.status(404).send({ success: false, message: "User not found" });
     }
 
-    return res
-      .status(200)
-      .send({ success: true, message: "User deleted successfully" });
+    // Everything that referenced the account used to survive it: enrolments,
+    // payments, reviews, bookmarks, activity logs, and — for a teacher — their
+    // courses along with every section video on disk.
+    const removed = await removeUserDependents(user._id);
+
+    return res.status(200).send({
+      success: true,
+      message: "User deleted successfully",
+      removed,
+    });
   } catch (error) {
     console.error("Error in deleting user:", error.message);
     return res
@@ -266,7 +267,6 @@ const deleteUserController = async (req, res) => {
 module.exports = {
   getAllUsersController,
   getAllCoursesController,
-  deleteCourseController,
   deleteUserController,
   adminLoginController,
   getAllEnrolledCoursesController,

@@ -1,61 +1,30 @@
-// import React, { useState } from 'react';
-// import NavBar from './NavBar';
-// import UserHome from "./UserHome"
-// import { Container } from 'react-bootstrap';
-// import AddCourse from '../user/teacher/AddCourse';
-
-// const Dashboard = () => {
-//    const [selectedComponent, setSelectedComponent] = useState('home');
-
-//    const renderSelectedComponent = () => {
-//       switch (selectedComponent) {
-//          case 'home':
-//             return <UserHome />
-//          case 'addcourse':
-//            return <AddCourse />
-//          default:
-//             return <UserHome />
-
-//       }
-//    };
-
-//    return (
-//       <>
-//          <NavBar setSelectedComponent={setSelectedComponent} />
-//          <Container className='my-3'>
-//             {renderSelectedComponent()}
-//          </Container>
-//       </>
-//    );
-// };
-
-// export default Dashboard;
-
-
 import React, { useContext, useState } from 'react';
 import NavBar from './NavBar';
 import UserHome from "./UserHome"
 import { Container } from 'react-bootstrap';
 import AddCourse from '../user/teacher/AddCourse';
-import StudentHome from '../user/student/StudentHome';
-import AdminHome from '../admin/AdminHome';
 import { UserContext } from '../../App';
 import EnrolledCourses from '../user/student/EnrolledCourses';
 import CourseContent from '../user/student/CourseContent';
 import AllCourses from '../admin/AllCourses';
+import { ROLES, hasAnyRole, isRole } from '../../lib/roles';
 
+// The role guards below compared against 'Teacher' and 'Admin' while the API
+// stores the role lowercase, so both fell through to <UserHome /> — which was
+// itself blank for the same reason. Comparisons go through lib/roles now.
 
 const Dashboard = () => {
    const user = useContext(UserContext)
    const [selectedComponent, setSelectedComponent] = useState('home');
 
    const renderSelectedComponent = () => {
-      const userType = user?.userData?.type;
+      const userData = user?.userData;
+
       switch (selectedComponent) {
          case 'home':
             return <UserHome />
          case 'addcourse':
-            if (userType === 'Teacher' || userType === 'Admin') {
+            if (hasAnyRole(userData, [ROLES.TEACHER, ROLES.ADMIN])) {
                return <AddCourse />
             }
             return <UserHome />
@@ -64,15 +33,15 @@ const Dashboard = () => {
          case 'cousreSection':
             return <CourseContent />
          case 'cousres':
-            if (userType === 'Admin') {
+            if (isRole(userData, ROLES.ADMIN)) {
                return <AllCourses />
             }
             return <UserHome />
          default:
             return <UserHome />
-
       }
    };
+
    return (
       <>
          <NavBar setSelectedComponent={setSelectedComponent} />
@@ -84,5 +53,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
-
