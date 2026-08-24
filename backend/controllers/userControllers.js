@@ -11,6 +11,10 @@ const {
   validateRegistration,
 } = require("../utils/registrationValidation");
 const {
+  buildEmailFilter,
+  isDuplicateOn,
+} = require("../utils/accountIdentity");
+const {
   postCourseController,
 } = require("./courseCreationController");
 const {
@@ -32,7 +36,7 @@ const registerController = async (req, res) => {
       });
     }
 
-    const existsUser = await userSchema.findOne({ email: value.email });
+    const existsUser = await userSchema.findOne(buildEmailFilter(value.email));
     if (existsUser) {
       return res
         .status(200)
@@ -55,7 +59,22 @@ const registerController = async (req, res) => {
       otp,
       otpExpiry,
     });
-    await newUser.save();
+
+    try {
+      await newUser.save();
+    } catch (writeError) {
+      // The findOne above is a read, and the write happens later. Two requests
+      // for the same address both get past that check, and the unique index is
+      // what actually stops the second one. Answer it the same way the
+      // pre-check does rather than surfacing an opaque 500.
+      if (isDuplicateOn(writeError, "email")) {
+        return res
+          .status(200)
+          .send({ message: "User already exists", success: false });
+      }
+
+      throw writeError;
+    }
 
     // Send email
     await sendEmail({
@@ -80,10 +99,13 @@ const loginController = async (req, res) => {
     typeof req.body?.email === "string" ? req.body.email : "";
 
   try {
+    // Addresses are stored lowercase, so the lookup has to be normalised too.
+    // Signing in as "User@Example.com" used to miss the row entirely and
+    // report "User not found" for an account that exists.
+    const emailFilter = buildEmailFilter(req.body?.email);
+
     // password is select: false on the schema, so ask for it explicitly.
-    const user = await userSchema
-      .findOne({ email: req.body.email })
-      .select("+password");
+    const user = await userSchema.findOne(emailFilter).select("+password");
     if (!user) {
       // A failed attempt used to leave no trace at all, so the log could not
       // answer the one question an audit log exists for. The attempted address
@@ -267,7 +289,7 @@ const verifyOtpController = async (req, res) => {
       return res.status(400).send({ message: "Email and OTP are required", success: false });
     }
     const user = await userSchema
-      .findOne({ email })
+      .findOne(buildEmailFilter(email))
       .select("+otp +otpExpiry");
     if (!user) {
       return res.status(404).send({ message: "User not found", success: false });
@@ -295,7 +317,7 @@ const forgotPasswordController = async (req, res) => {
     if (!email) {
       return res.status(400).send({ message: "Email is required", success: false });
     }
-    const user = await userSchema.findOne({ email });
+    const user = await userSchema.findOne(buildEmailFilter(email));
     if (!user) {
       return res.status(200).send({ message: "If that email exists, an OTP/reset token has been sent.", success: true });
     }
@@ -331,7 +353,7 @@ const resetPasswordController = async (req, res) => {
       return res.status(400).send({ message: "Password must be at least 6 characters.", success: false });
     }
     const user = await userSchema
-      .findOne({ email })
+      .findOne(buildEmailFilter(email))
       .select("+resetToken +resetTokenExpiry");
     if (!user) {
       return res.status(404).send({ message: "User not found", success: false });

@@ -42,6 +42,13 @@ const coursePaymentModel = mongoose.Schema(
   }
 );
 
+// The admin payment dashboard sorts by createdAt and filters by user, and a
+// user's own history is read by userId. Neither field was indexed, so both were
+// collection scans.
+coursePaymentModel.index({ userId: 1, createdAt: -1 });
+coursePaymentModel.index({ courseId: 1, createdAt: -1 });
+coursePaymentModel.index({ createdAt: -1 });
+
 const coursePaymentSchema = mongoose.model("coursePayment", coursePaymentModel);
 
 module.exports = coursePaymentSchema;
