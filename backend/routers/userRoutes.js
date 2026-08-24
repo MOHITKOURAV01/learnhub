@@ -7,7 +7,6 @@ const {
   loginController,
   logoutController,
   postCourseController,
-  getAllCoursesUserController,
   getAllCoursesController,
   sendCourseContentController,
   verifyOtpController,
@@ -24,6 +23,9 @@ const {
 const {
   completeSectionController,
 } = require("../controllers/progressController");
+const {
+  getTeacherCoursesController,
+} = require("../controllers/teacherCoursesController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
@@ -75,7 +77,7 @@ router.get(
   "/getallcoursesteacher",
   authMiddleware,
   checkRole(["teacher", "admin"]),
-  getAllCoursesUserController
+  getTeacherCoursesController
 );
 
 router.delete(
