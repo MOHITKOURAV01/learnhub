@@ -23,14 +23,14 @@ const {
 const {
   completeSectionController,
 } = require("../controllers/progressController");
-const {
-  getTeacherCoursesController,
-} = require("../controllers/teacherCoursesController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
   getEnrolledCoursesController,
 } = require("../controllers/enrolledCoursesController");
+const {
+  getTeacherCoursesController,
+} = require("../controllers/teacherCoursesController");
 const {
   enrollCourseController,
 } = require("../controllers/enrollmentController");
