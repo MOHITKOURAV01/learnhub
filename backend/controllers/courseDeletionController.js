@@ -1,4 +1,5 @@
 const { removeCourseVideoFiles } = require("../utils/courseFileCleanup");
+const { removeCourseDependents } = require("../utils/cascadeDelete");
 
 function getAuthenticatedIdentity(req) {
   const user = req.user || {};
@@ -12,6 +13,7 @@ function createDeleteCourseController({
   Course,
   isValidObjectId,
   cleanupFiles = removeCourseVideoFiles,
+  cascade = removeCourseDependents,
   logger = console,
 } = {}) {
   return async function deleteCourseController(req, res) {
@@ -82,12 +84,24 @@ function createDeleteCourseController({
         );
       }
 
+      // Every row that pointed at the course: enrolments, payments, reviews and
+      // bookmarks. Without this the admin dashboard renders rows with a blank
+      // course title, and getSummary() keeps averaging reviews for a course
+      // nobody can open.
+      const removed = await cascade(courseid);
+
       return res.status(200).send({
         success: true,
         message: "Course deleted successfully",
         cleanup: {
           deletedFiles: cleanupResult.deleted.length,
           failedFiles: cleanupResult.failed.length,
+        },
+        removed: {
+          enrolments: removed.enrolments,
+          payments: removed.payments,
+          reviews: removed.reviews,
+          bookmarks: removed.bookmarks,
         },
       });
     } catch (error) {

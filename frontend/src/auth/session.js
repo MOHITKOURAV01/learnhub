@@ -9,6 +9,7 @@ import {
   TOKEN_STORAGE_KEY,
   USER_STORAGE_KEY,
 } from '../components/common/AxiosInstance';
+import { getUserRole, normalizeRole } from '../lib/roles';
 
 // The storage keys are owned by AxiosInstance, whose 401 interceptor clears the
 // same two entries. Importing them keeps a single source of truth instead of a
@@ -113,14 +114,17 @@ export function readSession(storage = window.localStorage, nowMs = Date.now()) {
     isAuthenticated: true,
     user,
     token,
-    role: normalizeRole(user.type),
+    role: getUserRole(user),
   };
 }
 
-/** Roles are stored capitalised ("Teacher") but compared lowercase everywhere. */
-export function normalizeRole(role) {
-  return typeof role === 'string' ? role.trim().toLowerCase() : '';
-}
+// normalizeRole used to live here, with the comment "roles are stored
+// capitalised ("Teacher") but compared lowercase everywhere". Only the second
+// half was true, and only of this module — UserHome, NavBar and Dashboard all
+// compared against the capitalised spelling and silently matched nothing. The
+// implementation moved to lib/roles.js so there is one rule; it is re-exported
+// here because ProtectedRoute imports it from this module.
+export { normalizeRole };
 
 export function writeSession(token, user, storage = window.localStorage) {
   storage.setItem(TOKEN_KEY, token);
