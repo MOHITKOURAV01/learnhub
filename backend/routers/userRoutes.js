@@ -7,7 +7,6 @@ const {
   loginController,
   logoutController,
   postCourseController,
-  getAllCoursesUserController,
   getAllCoursesController,
   sendCourseContentController,
   verifyOtpController,
@@ -33,8 +32,19 @@ const {
   getEnrolledCoursesController,
 } = require("../controllers/enrolledCoursesController");
 const {
+  getTeacherCoursesController,
+} = require("../controllers/teacherCoursesController");
+const {
   enrollCourseController,
 } = require("../controllers/enrollmentController");
+const {
+  createRateLimiter,
+  rateLimitSettingsFromEnv,
+} = require("../middlewares/rateLimiter");
+const {
+  createVerificationThrottle,
+  throttleSettingsFromEnv,
+} = require("../middlewares/verificationThrottle");
 const {
   createCourseVideoUpload,
 } = require("../utils/videoUpload");
@@ -55,9 +65,26 @@ const courseVideoUpload = createCourseVideoUploadMiddleware({
   upload,
 });
 
-router.post("/register", registerController);
+// Two layers guard every credential endpoint: a per-client rate limit that caps
+// request volume, and a per-account failure throttle that locks the targeted
+// email address so rotating source addresses does not help.
+const rateLimitSettings = rateLimitSettingsFromEnv();
+const throttleSettings = throttleSettingsFromEnv();
 
-router.post("/login", loginController);
+const credentialRateLimiter = (scope) =>
+  createRateLimiter({ ...rateLimitSettings, scope });
+
+const credentialThrottle = (scope) =>
+  createVerificationThrottle({ ...throttleSettings, scope });
+
+router.post("/register", credentialRateLimiter("register"), registerController);
+
+router.post(
+  "/login",
+  credentialRateLimiter("login"),
+  credentialThrottle("login"),
+  loginController,
+);
 
 // Multer replaces req.body, so the userId authMiddleware wrote there does not
 // survive the upload. preserveAuthIdentity puts the token's id back before the
@@ -78,7 +105,7 @@ router.get(
   "/getallcoursesteacher",
   authMiddleware,
   checkRole(["teacher", "admin"]),
-  getAllCoursesUserController
+  getTeacherCoursesController
 );
 
 router.delete(
@@ -108,15 +135,47 @@ router.get("/getallcoursesuser", authMiddleware, getEnrolledCoursesController);
 // anyone write activity log rows for any account. There is no server-side
 // session to destroy — the token is stateless — so this exists purely so
 // signing out is recorded.
+//
+// Not rate limited either: it needs a valid token to reach, which is the
+// bound that matters, and throttling it would only make signing out fail.
 router.post("/logout", authMiddleware, logoutController);
 
-router.post("/verify-otp", verifyOtpController);
+router.post(
+  "/verify-otp",
+  credentialRateLimiter("verify-otp"),
+  credentialThrottle("verify-otp"),
+  verifyOtpController,
+);
+
 // Without this an account whose OTP expired had no route back: registering
 // again answered "User already exists" and logging in answered "Email is not
 // verified". The cooldown lives in the controller, not here, so it applies
 // however the code is requested.
-router.post("/resend-otp", resendOtpController);
-router.post("/forgot-password", forgotPasswordController);
-router.post("/reset-password", resetPasswordController);
+//
+// Rate limited like every other credential endpoint — it sends mail, so it is
+// exactly the kind of route that should not accept unlimited requests. No
+// failure throttle, for the same reason /forgot-password has none: it answers
+// the same way for known and unknown addresses, so there is no failure to count.
+router.post(
+  "/resend-otp",
+  credentialRateLimiter("resend-otp"),
+  resendOtpController,
+);
+
+// No failure throttle here: this endpoint answers the same way for known and
+// unknown addresses on purpose, so there is no failure to count. The rate limit
+// is what stops it being used as a mail bomb.
+router.post(
+  "/forgot-password",
+  credentialRateLimiter("forgot-password"),
+  forgotPasswordController,
+);
+
+router.post(
+  "/reset-password",
+  credentialRateLimiter("reset-password"),
+  credentialThrottle("reset-password"),
+  resetPasswordController,
+);
 
 module.exports = router;

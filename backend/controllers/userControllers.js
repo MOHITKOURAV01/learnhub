@@ -18,6 +18,14 @@ const {
   postCourseController,
 } = require("./courseCreationController");
 const {
+  getTeacherCoursesController,
+} = require("./teacherCoursesController");
+
+// The route wiring imports this from teacherCoursesController directly. The
+// aggregator keeps re-exporting it under its original name so nothing that
+// still reads it from here has to change.
+const getAllCoursesUserController = getTeacherCoursesController;
+const {
   getAllCoursesController,
 } = require("./courseListingController");
 const {
@@ -243,28 +251,10 @@ const logoutController = async (req, res) => {
 // Implemented in courseCreationController so upload cleanup is testable.
 
 ///all courses for the teacher
-const getAllCoursesUserController = async (req, res) => {
-  try {
-    const allCourses = await courseSchema.find({ userId: req.body.userId });
-    if (!allCourses) {
-      res.send({
-        success: false,
-        message: "No Courses Found",
-      });
-    } else {
-      res.send({
-        success: true,
-        message: "All Courses Fetched Successfully",
-        data: allCourses,
-      });
-    }
-  } catch (error) {
-    console.error("Error in fetching courses:", error);
-    res
-      .status(500)
-      .send({ success: false, message: "Failed to fetch courses" });
-  }
-};
+// Implemented in teacherCoursesController so the list is paginated and
+// projected like every other list endpoint, the owner is resolved from
+// req.user rather than req.body.userId, and the section count is computed
+// server-side for all three shapes `sections` takes (#94).
 
 ///delete courses by the teacher
 // Implemented in courseDeletionController so ownership is enforced against the

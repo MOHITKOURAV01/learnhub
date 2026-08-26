@@ -1,0 +1,87 @@
+/* Theme (#97).
+
+   Kept out of App.css deliberately: four branches were each appending a block
+   to the end of that file, which conflicts on every pair of them. A feature
+   stylesheet imported by the provider that owns the behaviour does not.
+
+   The base tokens stay in App.css, where `body.dark-mode` already redefines
+   eleven custom properties. Nothing here overrides them; this file adds the
+   pre-paint ground rule and the toggle's own styling.
+*/
+
+html.dark-mode {
+  background-color: #121212;
+  /* Native form controls, scrollbars and the canvas follow the theme. */
+  color-scheme: dark;
+}
+
+html.dark-mode body {
+  background-color: #121212;
+  color: #eae6df;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.16));
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.theme-toggle:hover {
+  background: rgba(127, 127, 127, 0.14);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid #00e0ff;
+  outline-offset: 2px;
+}
+
+.theme-toggle-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.theme-toggle-label {
+  font-size: 0.9rem;
+}
+
+/* The dropdown variant fills its row. */
+.theme-toggle-block {
+  width: calc(100% - 24px);
+  margin: 0 12px;
+  justify-content: flex-start;
+}
+
+.settings-dropdown {
+  background: #232526;
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 224, 255, 0.2);
+  padding: 12px 0;
+  animation: fadeInDropdown 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.settings-dropdown-heading {
+  margin: 0 12px 8px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.settings-dropdown .theme-toggle {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.landing-nav-actions .theme-toggle {
+  border-color: var(--navbar-border, rgba(255, 255, 255, 0.16));
+}

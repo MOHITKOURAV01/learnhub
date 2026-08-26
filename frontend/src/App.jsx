@@ -17,6 +17,7 @@ import {
 import SavedCourses from "./components/bookmarks/SavedCourses";
 
 import { AuthProvider } from "./auth/AuthProvider";
+import { ThemeProvider } from "./theme/ThemeProvider";
 import { useAuth } from "./auth/authContext";
 import { ProtectedRoute, PublicOnlyRoute } from "./auth/ProtectedRoute";
 
@@ -105,13 +106,18 @@ function AppRoutes() {
 function App() {
   return (
     <div className="App">
-      <AuthProvider>
-        <BookmarksProvider>
-          <Router>
-            <AppRoutes />
-          </Router>
-        </BookmarksProvider>
-      </AuthProvider>
+      {/* Outermost, because the theme applies to every page including the
+          ones that render no navbar at all — which is why dark mode did not
+          exist for a signed-out visitor. */}
+      <ThemeProvider>
+        <AuthProvider>
+          <BookmarksProvider>
+            <Router>
+              <AppRoutes />
+            </Router>
+          </BookmarksProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </div>
   );
 }
