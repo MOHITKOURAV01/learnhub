@@ -1,13 +1,32 @@
 import React, { useContext, useState, useEffect, useRef } from 'react'
 import { Navbar, Nav, Button, Container } from 'react-bootstrap';
 import { UserContext } from '../../App';
-import { NavLink } from 'react-router-dom';
-import { ROLES, isRole } from "../../lib/roles";
+import { Link } from 'react-router-dom';
 import SavedCoursesNavLink from "../bookmarks/SavedCoursesNavLink";
 import ThemeToggle from "../../theme/ThemeToggle";
 import axiosInstance, { clearSession } from "./AxiosInstance";
+import { panelPath, visiblePanelLinks } from "../../lib/dashboardPanels";
 
-const NavBar = ({ setSelectedComponent }) => {
+// #105. These links used to call a prop:
+//
+//   const NavBar = ({ setSelectedComponent }) => {
+//      const handleOptionClick = (component) => setSelectedComponent(component);
+//
+// Only Dashboard.jsx passed it. CourseContent.jsx renders `<NavBar />` bare, so
+// on the course player every one of them threw `TypeError:
+// setSelectedComponent is not a function` on click, and because the handler
+// runs before React Router's own click handling nothing navigated either — the
+// link was simply dead, on the page a student spends the whole course on.
+//
+// They were also `<NavLink>` elements with no `to`, which React Router resolves
+// against the current location: they rendered as links pointing at the page you
+// were already on, unusable by middle click or "open in new tab". `Home` was a
+// raw `<a href>`, a full document load that tore down every provider.
+//
+// The panel is part of the URL now, so the navbar navigates like any other
+// link, works on every page that renders it, and needs no prop at all.
+
+const NavBar = () => {
 
    const user = useContext(UserContext)
    const [settingsOpen, setSettingsOpen] = useState(false);
@@ -38,6 +57,11 @@ const NavBar = ({ setSelectedComponent }) => {
    }
 
 
+   // Rendered from lib/dashboardPanels, which is the same list Dashboard
+   // validates the incoming panel against — the navbar cannot advertise a link
+   // the dashboard would refuse to open.
+   const panelLinks = visiblePanelLinks(user.userData);
+
    const handleLogout = async () => {
       // Tell the server first, so the sign-out is recorded — the activity log
       // has always had a "logout" action and a filter for it, and nothing ever
@@ -53,10 +77,6 @@ const NavBar = ({ setSelectedComponent }) => {
       clearSession();
       window.location.href = "/";
    }
-   const handleOptionClick = (component) => {
-      setSelectedComponent(component);
-   };
-
    return (
       <Navbar expand="lg" className="premium-navbar" style={{backdropFilter:'blur(12px) saturate(1.2)', background:'rgba(30,41,59,0.82)', borderRadius:'0 0 18px 18px', boxShadow:'0 4px 24px #00e0ff22', position:'relative', zIndex: 1040}}>
          <Container fluid>
@@ -66,7 +86,11 @@ const NavBar = ({ setSelectedComponent }) => {
             <Navbar.Toggle aria-controls="navbarScroll" />
             <Navbar.Collapse id="navbarScroll">
             <Nav className="me-auto my-2 my-lg-0 premium-nav-links" style={{ maxHeight: '100px', alignItems:'center', position: 'relative', zIndex: 1050 }} navbarScroll>
-               <a className="premium-btn" href="/dashboard" style={{zIndex: 1051}}>Home</a>
+               {/* A <Link>, not an <a href>. Inside a BrowserRouter the anchor
+                   was a full document load that tore down AuthProvider,
+                   BookmarksProvider and ThemeProvider and re-fetched
+                   everything. */}
+               <Link className="premium-btn" to="/dashboard" style={{zIndex: 1051}}>Home</Link>
                <div ref={settingsRef} style={{display:'inline-flex', alignItems:'center', position:'relative', zIndex: 1051}}>
                  <button
                    className="premium-btn settings-btn"
@@ -91,19 +115,23 @@ const NavBar = ({ setSelectedComponent }) => {
                    </div>
                  )}
                </div>
-                  {/* These compared against 'Teacher', 'Admin' and 'Student'
-                      while the API stores the role lowercase, so none of the
-                      three links ever rendered — a teacher had no route to the
-                      Add Course form at all. */}
-                  {isRole(user.userData, ROLES.TEACHER) && (
-                     <NavLink className="premium-btn" onClick={() => handleOptionClick('addcourse')}>Add Course</NavLink>
-                  )}
-                  {isRole(user.userData, ROLES.ADMIN) && (
-                     <NavLink className="premium-btn" onClick={() => handleOptionClick('cousres')}>Courses</NavLink>
-                  )}
-                  {isRole(user.userData, ROLES.STUDENT) && (
-                     <NavLink className="premium-btn" onClick={() => handleOptionClick('enrolledcourese')}>Enrolled Courses</NavLink>
-                  )}
+                  {/* Real links to real addresses. Each one is reachable by
+                      keyboard, can be opened in a new tab, and survives a
+                      reload — none of which was true while the panel lived in
+                      one component's useState.
+
+                      The role comparison still goes through lib/roles (#84);
+                      it has moved into visiblePanelLinks so the navbar and the
+                      dashboard cannot disagree about who may see what. */}
+                  {panelLinks.map(({ panel, label }) => (
+                     <Link
+                        key={panel}
+                        className="premium-btn"
+                        to={panelPath(panel)}
+                     >
+                        {label}
+                     </Link>
+                  ))}
                </Nav>
                <Nav className="premium-nav-links" style={{alignItems:'center'}}>
                   <h5 className='mx-3' style={{color:'#00e0ff', fontWeight:700, textShadow:'0 2px 12px #00e0ff55', margin:0, display:'flex', alignItems:'center'}}>Hi {user.userData.name}</h5>
