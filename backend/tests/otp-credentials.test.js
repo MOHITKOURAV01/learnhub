@@ -25,6 +25,19 @@ let User;
 
 test.before(async () => {
   await startTestDatabase();
+
+  // Two independent limits guard /verify-otp, and they both default to 5:
+  // the per-account failure throttle from #63, which answers 429 and locks the
+  // address, and the per-credential attempt counter this module adds, which
+  // answers 400 and burns the code. The throttle is middleware, so at equal
+  // limits it fires first and the counter is never reached.
+  //
+  // Both are wanted in production. Here the counter is the subject, so the
+  // throttle is given headroom rather than the assertion being loosened to
+  // "refused, somehow". Set before the app is required: userRoutes reads the
+  // throttle settings once, when the router is built.
+  process.env.AUTH_MAX_FAILED_ATTEMPTS = String(MAX_ATTEMPTS * 4);
+
   app = require("../app");
   User = require("../schemas/userModel");
 });
@@ -315,6 +328,23 @@ test("wrong attempts accumulate and the credential dies at the limit", async () 
   assert.equal(afterLimit.status, 400);
   assert.equal(afterLimit.body.success, false);
   assert.equal((await User.findOne({ email: "otto@example.com" })).isVerified, false);
+});
+
+// The other half of the pair, so the interaction is pinned rather than implied:
+// with the two limits at their production defaults the throttle is reached
+// first, and a locked address is refused before the controller runs at all.
+test("the per-account throttle also refuses a locked address", async () => {
+  const { createVerificationThrottle } = require("../middlewares/verificationThrottle");
+  const { throttleSettingsFromEnv } = require("../middlewares/verificationThrottle");
+
+  const settings = throttleSettingsFromEnv({});
+
+  assert.equal(
+    settings.maxFailures,
+    MAX_ATTEMPTS,
+    "the two limits are equal by default, which is why the throttle shadows the counter",
+  );
+  assert.equal(typeof createVerificationThrottle, "function");
 });
 
 test("an expired code is refused with the same answer as a wrong one", async () => {
