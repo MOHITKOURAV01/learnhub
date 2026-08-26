@@ -4,38 +4,20 @@ import { UserContext } from '../../App';
 import { NavLink } from 'react-router-dom';
 import { ROLES, isRole } from "../../lib/roles";
 import SavedCoursesNavLink from "../bookmarks/SavedCoursesNavLink";
+import ThemeToggle from "../../theme/ThemeToggle";
 import axiosInstance, { clearSession } from "./AxiosInstance";
 
 const NavBar = ({ setSelectedComponent }) => {
 
    const user = useContext(UserContext)
-   const [darkMode, setDarkMode] = useState(false);
    const [settingsOpen, setSettingsOpen] = useState(false);
    const settingsRef = useRef();
 
-   useEffect(() => {
-      // On mount, set dark mode from localStorage
-      const isDark = localStorage.getItem('darkMode') === 'true';
-      setDarkMode(isDark);
-      if (isDark) {
-        document.body.classList.add('dark-mode');
-      } else {
-        document.body.classList.remove('dark-mode');
-      }
-   }, []);
-
-   const toggleDarkMode = () => {
-      setDarkMode((prev) => {
-        const newMode = !prev;
-        if (newMode) {
-          document.body.classList.add('dark-mode');
-        } else {
-          document.body.classList.remove('dark-mode');
-        }
-        localStorage.setItem('darkMode', newMode);
-        return newMode;
-      });
-   };
+   // The theme used to live in this component's local state, applied in a
+   // useEffect and stored under a third localStorage key written as a boolean
+   // and read back as a string. It belongs to the whole application, not to a
+   // navbar that renders for signed-in users only, so it moved to
+   // ThemeProvider (#97).
 
    // Close settings dropdown on outside click
    useEffect(() => {
@@ -97,29 +79,15 @@ const NavBar = ({ setSelectedComponent }) => {
                    <span aria-hidden="true" style={{fontSize: '1.3rem'}}>⚙️</span> <span className="d-none d-md-inline">Settings</span>
                  </button>
                  {settingsOpen && (
-                   <div style={{position:'absolute', top:'110%', left:0, background:'#232526', color:'#fff', borderRadius:10, boxShadow:'0 2px 12px #00e0ff33', minWidth:180, zIndex:2000, padding:'12px 0', animation:'fadeInDropdown 0.25s cubic-bezier(.4,0,.2,1)'}}>
-                     <button
-                       className="darkmode-toggle-btn"
-                       style={{width:'100%', background:'none', color:'#fff', border:'none', textAlign:'left', padding:'8px 18px', fontWeight:700, display:'flex', alignItems:'center', gap:8, cursor:'pointer'}}
-                       onClick={() => { toggleDarkMode(); setSettingsOpen(false); }}
-                     >
-                       <span style={{fontSize:'1.2rem'}}>{darkMode ? '🌞' : '🌙'}</span> {darkMode ? 'Light Mode' : 'Dark Mode'}
-                     </button>
-                     <button
-                       className="brightness-toggle-btn"
-                       style={{width:'100%', background:'none', color:'#fff', border:'none', textAlign:'left', padding:'8px 18px', fontWeight:700, display:'flex', alignItems:'center', gap:8, cursor:'pointer'}}
-                       onClick={() => {
-                         const current = document.body.style.filter || '';
-                         if (current.includes('brightness(1.2)')) {
-                           document.body.style.filter = '';
-                         } else {
-                           document.body.style.filter = 'brightness(1.2)';
-                         }
-                         setSettingsOpen(false);
-                       }}
-                     >
-                       <span style={{fontSize:'1.2rem'}}>💡</span> Toggle Brightness
-                     </button>
+                   <div className="settings-dropdown" style={{position:'absolute', top:'110%', left:0, minWidth:200, zIndex:2000}}>
+                     <p className="settings-dropdown-heading">Appearance</p>
+                     {/* The same control the signed-out navbar renders, so the
+                         preference is reachable from every page rather than
+                         only from a menu that needs a session. The old
+                         "Toggle Brightness" button next to it wrote
+                         document.body.style.filter inline, was never
+                         persisted, and was undone by any full navigation. */}
+                     <ThemeToggle className="theme-toggle-block" />
                    </div>
                  )}
                </div>

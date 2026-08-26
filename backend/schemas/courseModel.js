@@ -36,6 +36,12 @@ const courseModel = mongoose.Schema(
   }
 );
 
+// getAllCoursesUserController filters by userId (the owning teacher), and the
+// paginated catalogue from #43 sorts by createdAt, enrolled or C_title.
+courseModel.index({ userId: 1, createdAt: -1 });
+courseModel.index({ createdAt: -1 });
+courseModel.index({ enrolled: -1 });
+
 const courseSchema = mongoose.model("course", courseModel);
 
 module.exports = courseSchema;
