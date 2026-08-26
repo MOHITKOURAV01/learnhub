@@ -1,72 +1,49 @@
 const mongoose = require("mongoose");
 const CourseBookmark = require("../schemas/courseBookmarkModel");
 const Course = require("../schemas/courseModel");
+const {
+  bookmarkAggregateOptions,
+  buildBookmarkPipeline,
+  clampedPage,
+  parseSavedCoursesQuery,
+  readBookmarkFacet,
+} = require("../utils/bookmarkListing");
 
-const ALLOWED_SORTS = new Set([
-  "recent",
-  "title-asc",
-  "title-desc",
-  "price-asc",
-  "price-desc",
-]);
-
-const parsePositiveInteger = (value, fallback, maximum) => {
-  const parsed = Number.parseInt(value, 10);
-
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return fallback;
-  }
-
-  return Math.min(parsed, maximum);
-};
+// #107. getSavedCourses read the user's entire bookmark collection on every
+// request, populated a course document for each row, and then filtered, sorted,
+// counted and sliced in Node — to return a page of twelve. serializeCourse and
+// its per-row regex ran over every saved course to produce those twelve, and
+// the category list was rebuilt by walking all of them into a Set.
+//
+// The load was multiplied by how the client used it: BookmarksProvider called
+// the endpoint on mount and after every clear, and SavedCourses re-ran it on
+// each learnhub:bookmark-change event, so saving five courses in a row on the
+// wishlist meant five full reads.
+//
+// utils/bookmarkListing.js owns the pipeline and the shaping now; the query
+// runs once, in the database.
 
 const getUserId = (req) =>
   req.user?._id?.toString() || req.body?.userId || null;
 
-const isPaidCourse = (price) => /\d/.test(String(price || ""));
+/**
+ * $lookup needs a collection name, not a model. Reading it off the model rather
+ * than writing "courses" as a literal means a change to Mongoose's
+ * pluralisation cannot silently make every join return nothing.
+ */
+const courseCollectionName = () => Course?.collection?.name || "courses";
 
-const parsePrice = (price) => {
-  const parsed = Number.parseFloat(
-    String(price || "").replace(/[^0-9.-]/g, ""),
-  );
-
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const serializeCourse = (course) => {
-  if (!course) {
-    return {
-      id: null,
-      title: "Course unavailable",
-      category: "Unavailable",
-      educator: "Unknown",
-      description:
-        "This saved course is no longer available in the catalog.",
-      price: null,
-      numericPrice: 0,
-      accessType: "unavailable",
-      availability: "deleted",
-      enrolled: 0,
-    };
-  }
-
-  const paid = isPaidCourse(course.C_price);
-
-  return {
-    id: course._id.toString(),
-    title: course.C_title,
-    category: course.C_categories,
-    educator: course.C_educator,
-    description: course.C_description,
-    price: course.C_price || "Free",
-    numericPrice: paid ? parsePrice(course.C_price) : 0,
-    accessType: paid ? "paid" : "free",
-    availability: "available",
-    enrolled: course.enrolled || 0,
-    createdAt: course.createdAt,
-    updatedAt: course.updatedAt,
-  };
-};
+/**
+ * find() casts a string id against the schema; aggregate() does not.
+ *
+ * getUserId returns `req.user._id.toString()`, and `$match: { userId: "<hex>" }`
+ * against an ObjectId field matches nothing at all — silently, as an empty
+ * wishlist rather than as an error. The cast has to be explicit here.
+ */
+const toUserObjectId = (userId) =>
+  mongoose.Types.ObjectId.isValid(userId)
+    ? new mongoose.Types.ObjectId(String(userId))
+    : userId;
 
 const addBookmark = async (req, res) => {
   try {
@@ -215,137 +192,50 @@ const getBookmarkStatus = async (req, res) => {
 const getSavedCourses = async (req, res) => {
   try {
     const userId = getUserId(req);
-    const page = parsePositiveInteger(req.query.page, 1, 100000);
-    const limit = parsePositiveInteger(req.query.limit, 12, 50);
-    const category = String(req.query.category || "").trim();
-    const access = String(req.query.access || "").trim().toLowerCase();
-    const availability = String(
-      req.query.availability || "",
-    ).trim().toLowerCase();
-    const search = String(req.query.search || "")
-      .trim()
-      .toLowerCase()
-      .slice(0, 120);
-    const sort = String(req.query.sort || "recent").trim().toLowerCase();
+    const parsed = parseSavedCoursesQuery(req.query || {});
 
-    if (access && !["free", "paid"].includes(access)) {
+    if (!parsed.valid) {
       return res.status(400).send({
         success: false,
-        message: "Invalid access filter.",
+        message: parsed.message,
       });
     }
 
-    if (
-      availability &&
-      !["available", "deleted"].includes(availability)
-    ) {
-      return res.status(400).send({
-        success: false,
-        message: "Invalid availability filter.",
-      });
-    }
+    const filters = parsed.value;
+    const options = { courseCollection: courseCollectionName() };
 
-    if (!ALLOWED_SORTS.has(sort)) {
-      return res.status(400).send({
-        success: false,
-        message: "Invalid saved-course sort option.",
-      });
-    }
+    const runPipeline = async (pageFilters) => {
+      const [facet] = await CourseBookmark.aggregate(
+        buildBookmarkPipeline(toUserObjectId(userId), pageFilters, options),
+      ).option(bookmarkAggregateOptions(pageFilters));
 
-    const bookmarkDocs = await CourseBookmark.find({ userId })
-      .populate({
-        path: "courseId",
-        select:
-          "C_title C_categories C_educator C_description C_price enrolled createdAt updatedAt",
-      })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    let items = bookmarkDocs.map((bookmark) => ({
-      bookmarkId: bookmark._id.toString(),
-      savedAt: bookmark.createdAt,
-      course: serializeCourse(bookmark.courseId),
-    }));
-
-    if (search) {
-      items = items.filter(({ course }) =>
-        [
-          course.title,
-          course.category,
-          course.educator,
-          course.description,
-        ].some((field) =>
-          String(field || "").toLowerCase().includes(search),
-        ),
-      );
-    }
-
-    if (category) {
-      items = items.filter(
-        ({ course }) =>
-          String(course.category || "").toLowerCase() ===
-          category.toLowerCase(),
-      );
-    }
-
-    if (access) {
-      items = items.filter(
-        ({ course }) => course.accessType === access,
-      );
-    }
-
-    if (availability) {
-      items = items.filter(
-        ({ course }) => course.availability === availability,
-      );
-    }
-
-    const sorters = {
-      recent: (a, b) =>
-        new Date(b.savedAt || 0) - new Date(a.savedAt || 0),
-      "title-asc": (a, b) =>
-        a.course.title.localeCompare(b.course.title),
-      "title-desc": (a, b) =>
-        b.course.title.localeCompare(a.course.title),
-      "price-asc": (a, b) =>
-        a.course.numericPrice - b.course.numericPrice,
-      "price-desc": (a, b) =>
-        b.course.numericPrice - a.course.numericPrice,
+      return readBookmarkFacet(facet, pageFilters);
     };
 
-    items.sort(sorters[sort]);
+    let result = await runPipeline(filters);
 
-    const categories = [
-      ...new Set(
-        bookmarkDocs
-          .map((bookmark) => bookmark.courseId?.C_categories)
-          .filter(Boolean),
-      ),
-    ].sort((a, b) => a.localeCompare(b));
+    // The old code clamped an over-large page by slicing an array it had
+    // already materialised. An aggregation has skipped past the end before it
+    // knows the total, so an out-of-range page is detected from the count and
+    // re-run once — and only when the client asked for a page that does not
+    // exist.
+    const retryPage = clampedPage(filters, result.pagination.totalItems);
 
-    const totalItems = items.length;
-    const totalPages = Math.max(1, Math.ceil(totalItems / limit));
-    const safePage = Math.min(page, totalPages);
-    const start = (safePage - 1) * limit;
+    if (retryPage !== null) {
+      result = await runPipeline({ ...filters, page: retryPage });
+    }
 
     return res.status(200).send({
       success: true,
-      data: items.slice(start, start + limit),
-      categories,
-      pagination: {
-        page: safePage,
-        limit,
-        totalItems,
-        totalPages,
-        hasPreviousPage: safePage > 1,
-        hasNextPage: safePage < totalPages,
-      },
+      data: result.data,
+      categories: result.categories,
+      pagination: result.pagination,
       filters: {
-        search,
-        category,
-        access,
-        availability,
-        sort,
+        search: filters.search,
+        category: filters.category,
+        access: filters.access,
+        availability: filters.availability,
+        sort: filters.sort,
       },
     });
   } catch (error) {
