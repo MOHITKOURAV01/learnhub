@@ -2,6 +2,7 @@ import React from 'react'
 import { NavLink } from 'react-router-dom';
 import Navbar from 'react-bootstrap/Navbar';
 import { Container, Nav } from 'react-bootstrap';
+import ThemeToggle from '../../theme/ThemeToggle';
 
 const PublicNavBar = () => {
    return (
@@ -20,6 +21,10 @@ const PublicNavBar = () => {
                   <NavLink className="nav-text-link" to={'/'}>Home</NavLink>
                   <NavLink className="nav-text-link" to={'/login'}>Login</NavLink>
                   <NavLink className="nav-text-link" to={'/register'}>Register</NavLink>
+                  {/* Signed-out visitors had no way to change the theme at
+                      all: the only toggle lived inside NavBar, which returns
+                      null without a session (#97). */}
+                  <ThemeToggle showLabel={false} />
                </Nav>
             </Navbar.Collapse>
          </Container>

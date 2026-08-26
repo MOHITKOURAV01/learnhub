@@ -9,6 +9,22 @@ const enrolledCourseSchema = require("../schemas/enrolledCourseModel");
 const coursePaymentSchema = require("../schemas/coursePaymentModel");
 const { ACTIONS, recordActivity } = require("../utils/activityLog");
 const { removeUserDependents } = require("../utils/cascadeDelete");
+const { countSections } = require("../utils/courseSections");
+const {
+  buildCourseFilter,
+  buildCourseSort,
+} = require("../utils/courseListing");
+const {
+  ADMIN_COURSE_FIELDS,
+  buildUserFilter,
+  buildUserSort,
+  toAdminCourseRow,
+  toAdminEnrollmentRow,
+} = require("../utils/adminListing");
+const {
+  buildPaginationMetadata,
+  normalizePagination,
+} = require("../utils/pagination");
 
 // Fields that must never leave the server. password is a bcrypt hash, and otp
 // and resetToken are live credentials: anything holding them can complete
@@ -170,14 +186,31 @@ const adminResetPasswordController = async (req, res) => {
 };
 
 // Get all enrolled courses (for admin dashboard)
+//
+// Was an unbounded find() with two populate() calls on top. Paginated like the
+// rest, and each row is shaped so a reference to a deleted user or course is
+// flagged rather than rendered as two blank cells (#96).
 const getAllEnrolledCoursesController = async (req, res) => {
   try {
-    const enrolled = await enrolledCourseSchema
-      .find()
-      .populate("userId", "name email")
-      .populate("courseId", "C_title");
+    const { page, limit, skip } = normalizePagination(req.query || {});
 
-    return res.status(200).send({ success: true, data: enrolled });
+    const [enrolled, totalItems] = await Promise.all([
+      enrolledCourseSchema
+        .find()
+        .populate("userId", "name email")
+        .populate("courseId", "C_title")
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      enrolledCourseSchema.countDocuments(),
+    ]);
+
+    return res.status(200).send({
+      success: true,
+      data: enrolled.map(toAdminEnrollmentRow),
+      pagination: buildPaginationMetadata({ page, limit, totalItems }),
+    });
   } catch (error) {
     console.error("Failed to fetch enrolled courses:", error.message);
     return res
@@ -203,13 +236,65 @@ const getAllPaymentsController = async (req, res) => {
   }
 };
 
+/**
+ * Counts accounts per role across the whole filter, not just the page.
+ *
+ * The dashboard could not say how many educators or students there were
+ * without loading every account and counting them in the browser, which is
+ * exactly what it was doing.
+ *
+ * @param {object} filter
+ * @returns {Promise<{total: number, student: number, teacher: number, admin: number}>}
+ */
+const summarizeUsersByRole = async (filter) => {
+  const rows = await userSchema.aggregate([
+    { $match: filter },
+    { $group: { _id: "$type", count: { $sum: 1 } } },
+  ]);
+
+  const summary = { total: 0, student: 0, teacher: 0, admin: 0 };
+
+  for (const row of rows) {
+    const role = String(row._id || "").toLowerCase();
+
+    summary.total += row.count;
+
+    if (Object.hasOwn(summary, role)) {
+      summary[role] = row.count;
+    }
+  }
+
+  return summary;
+};
+
 const getAllUsersController = async (req, res) => {
   try {
     // Without an explicit projection this returned password hashes and live
-    // OTP and reset tokens for every account.
-    const allUsers = await userSchema.find().select(PUBLIC_USER_PROJECTION);
+    // OTP and reset tokens for every account. Without a limit it returned every
+    // account, full stop — the whole collection serialised into one body on
+    // every mount of the dashboard (#96).
+    const { page, limit, skip } = normalizePagination(req.query || {});
+    const filter = buildUserFilter(req.query || {});
+    const sort = buildUserSort(req.query || {});
 
-    return res.status(200).send({ success: true, data: allUsers });
+    const [allUsers, totalItems, roleCounts] = await Promise.all([
+      userSchema
+        .find(filter)
+        .select(PUBLIC_USER_PROJECTION)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      userSchema.countDocuments(filter),
+      summarizeUsersByRole(filter),
+    ]);
+
+    return res.status(200).send({
+      success: true,
+      data: allUsers,
+      summary: roleCounts,
+      pagination: buildPaginationMetadata({ page, limit, totalItems }),
+    });
   } catch (error) {
     console.error("Failed to fetch users:", error.message);
     return res
@@ -220,9 +305,31 @@ const getAllUsersController = async (req, res) => {
 
 const getAllCoursesController = async (req, res) => {
   try {
-    const allCourses = await courseSchema.find();
+    // The same search, filter and sort rules the public catalogue uses (#43),
+    // so an admin looking for a course and a visitor looking for one get the
+    // same answers rather than two implementations that drift.
+    const { page, limit, skip } = normalizePagination(req.query || {});
+    const filter = buildCourseFilter(req.query || {});
+    const sort = buildCourseSort(req.query || {});
 
-    return res.status(200).send({ success: true, data: allCourses });
+    const [allCourses, totalItems] = await Promise.all([
+      courseSchema
+        .find(filter)
+        .select(ADMIN_COURSE_FIELDS)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      courseSchema.countDocuments(filter),
+    ]);
+
+    return res.status(200).send({
+      success: true,
+      // `sections` never reaches the client: the table renders a count, and
+      // the raw field carries every section's S_content.path.
+      data: allCourses.map((course) => toAdminCourseRow(course, countSections)),
+      pagination: buildPaginationMetadata({ page, limit, totalItems }),
+    });
   } catch (error) {
     console.error("Failed to fetch courses:", error.message);
     return res
@@ -276,4 +383,5 @@ module.exports = {
   SENSITIVE_USER_FIELDS,
   getAdminCredentials,
   safeEquals,
+  summarizeUsersByRole,
 };
