@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import { Container } from 'react-bootstrap';
 import Avatar from '@mui/material/Avatar';
@@ -10,6 +10,11 @@ import Typography from '@mui/material/Typography';
 import axiosInstance from './AxiosInstance';
 import PublicNavBar from './PublicNavBar';
 import Dropdown from 'react-bootstrap/Dropdown';
+import Toast from './Toast';
+import VerifyEmailPanel, {
+   readPendingVerification,
+   writePendingVerification,
+} from './VerifyEmailPanel';
 import { ROLES, roleLabel } from '../../lib/roles';
 
 
@@ -18,14 +23,26 @@ import { ROLES, roleLabel } from '../../lib/roles';
 const Register = () => {
    const navigate = useNavigate()
    const [selectedOption, setSelectedOption] = useState('Select User');
-   const [showOtpInput, setShowOtpInput] = useState(false);
-   const [otp, setOtp] = useState('');
+   // The address awaiting verification. Empty means "show the sign-up form".
+   // Seeded from sessionStorage so a refresh on the verify step does not strand
+   // the account: the code is in the user's inbox but the old component state
+   // was the only thing that knew which address to send it for.
+   const [pendingEmail, setPendingEmail] = useState(() => readPendingVerification());
+   const [submitting, setSubmitting] = useState(false);
+   const [toast, setToast] = useState({ message: '', type: 'info' });
    const [data, setData] = useState({
       name: "",
       email: "",
       password: "",
       type: "",
    })
+
+   const notify = (message, type = 'info') => setToast({ message, type });
+   const closeToast = () => setToast({ message: '', type: 'info' });
+
+   useEffect(() => {
+      writePendingVerification(pendingEmail);
+   }, [pendingEmail]);
 
    // The stored value and the label on the toggle are not the same thing: the
    // API lowercases `type` on write, so posting "Student" only meant the
@@ -40,46 +57,62 @@ const Register = () => {
       setData({ ...data, [name]: value });
    };
 
-   const handleSubmit = (e) => {
+   const handleSubmit = async (e) => {
       e.preventDefault()
-      if (!data?.name || !data?.email || !data?.password || !data?.type) return alert("Please fill all fields");
-      else {
-         axiosInstance.post('/api/user/register', data)
-            .then((response) => {
-               if (response.data.success) {
-                  alert(response.data.message)
-                  setShowOtpInput(true)
-               } else {
-                  alert(response.data.message || 'Registration failed. Please try again.');
-               }
-            })
-            .catch((error) => {
-               console.log("Error", error);
-            });
-      }
-   };
 
-   const handleOtpSubmit = (e) => {
-      e.preventDefault();
-      if (!otp) return alert("Please enter the 6-digit OTP");
-      axiosInstance.post('/api/user/verify-otp', { email: data.email, otp })
-         .then((response) => {
-            if (response.data.success) {
-               alert(response.data.message);
-               navigate('/login');
-            } else {
-               alert(response.data.message || 'OTP verification failed');
-            }
-         })
-         .catch((error) => {
-            console.log("Error", error);
-            alert("Verification error, please try again.");
-         });
+      if (!data?.name || !data?.email || !data?.password || !data?.type) {
+         return notify('Please fill all fields', 'error');
+      }
+
+      if (data.password.length < 6) {
+         return notify('Password must be at least 6 characters.', 'error');
+      }
+
+      setSubmitting(true);
+
+      try {
+         const response = await axiosInstance.post('/api/user/register', data);
+
+         if (response.data.success) {
+            notify(response.data.message, 'success');
+            // Also covers the re-registration case: an address with an
+            // unverified registration gets a fresh code instead of the old
+            // "User already exists" dead end.
+            setPendingEmail(data.email.trim().toLowerCase());
+            return;
+         }
+
+         notify(
+            response.data.message || 'Registration failed. Please try again.',
+            'error',
+         );
+      } catch (error) {
+         const retryAfter = error.response?.data?.retryAfterSeconds;
+
+         if (error.response?.data?.needsVerification) {
+            // A code went out moments ago; go straight to the verify step
+            // rather than making the user register a third time.
+            setPendingEmail(data.email.trim().toLowerCase());
+            notify(error.response.data.message, 'info');
+            return;
+         }
+
+         notify(
+            error.response?.data?.message ||
+               (retryAfter
+                  ? `Please wait ${retryAfter}s and try again.`
+                  : 'Registration failed. Please try again.'),
+            'error',
+         );
+      } finally {
+         setSubmitting(false);
+      }
    };
 
 
    return (
       <>
+         <Toast message={toast.message} type={toast.type} onClose={closeToast} />
 
          <PublicNavBar />
          <div className="first-container premium-bg">
@@ -89,32 +122,18 @@ const Register = () => {
                      {/* <LockOutlinedIcon /> */}
                   </Avatar>
                   <Typography component="h1" variant="h5">
-                     {showOtpInput ? "Verify Email" : "Register"}
+                     {pendingEmail ? "Verify Email" : "Register"}
                   </Typography>
-                  {showOtpInput ? (
-                     <Box component="form" onSubmit={handleOtpSubmit} noValidate>
-                        <Typography variant="body2" sx={{ my: 2 }}>
-                           Please enter the 6-digit OTP code sent to <strong>{data.email}</strong>.
-                        </Typography>
-                        <TextField
-                           margin="normal"
-                           fullWidth
-                           id="otp"
-                           label="Enter 6-digit OTP"
-                           name="otp"
-                           value={otp}
-                           onChange={(e) => setOtp(e.target.value)}
-                           autoFocus
-                        />
-                        <Button
-                           type="submit"
-                           variant="contained"
-                           sx={{ mt: 3, mb: 2 }}
-                           style={{ width: '200px' }}
-                        >
-                           Verify OTP
-                        </Button>
-                     </Box>
+                  {pendingEmail ? (
+                     <VerifyEmailPanel
+                        email={pendingEmail}
+                        notify={notify}
+                        onVerified={() => {
+                           setPendingEmail('');
+                           navigate('/login');
+                        }}
+                        onCancel={() => setPendingEmail('')}
+                     />
                   ) : (
                      <Box component="form" onSubmit={handleSubmit} noValidate>
                         <TextField
@@ -147,7 +166,7 @@ const Register = () => {
                            label="Password"
                            type="password"
                            id="password"
-                           autoComplete="current-password"
+                           autoComplete="new-password"
                         />
                         <Dropdown className='my-3'>
                            <Dropdown.Toggle variant="outline-secondary" id="dropdown-basic">
@@ -167,10 +186,11 @@ const Register = () => {
                            <Button
                               type="submit"
                               variant="contained"
+                              disabled={submitting}
                               sx={{ mt: 3, mb: 2 }}
                               style={{ width: '200px' }}
                            >
-                              Sign Up
+                              {submitting ? 'Signing up…' : 'Sign Up'}
                            </Button>
                         </Box>
                         <Grid container>

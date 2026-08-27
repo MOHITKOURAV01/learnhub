@@ -13,6 +13,10 @@ import axiosInstance, {
 } from './AxiosInstance';
 import PublicNavBar from './PublicNavBar';
 import Toast from './Toast';
+import VerifyEmailPanel, {
+   readPendingVerification,
+   writePendingVerification,
+} from './VerifyEmailPanel';
 
 const Login = () => {
    const navigate = useNavigate()
@@ -20,7 +24,16 @@ const Login = () => {
    // Set by ProtectedRoute when it interrupts a navigation, so signing in
    // returns the user to the page they originally asked for.
    const intendedPath = location.state?.from?.pathname || '/dashboard'
-   const [viewMode, setViewMode] = useState('login'); // 'login', 'forgot', 'reset'
+   // 'login', 'forgot', 'reset', 'verify'
+   const [viewMode, setViewMode] = useState(() =>
+      readPendingVerification() ? 'verify' : 'login',
+   );
+   // The address the verify step is for. Signing in with an account that was
+   // never verified used to report "Email is not verified" and stop there,
+   // with no way to get a code from this screen.
+   const [pendingEmail, setPendingEmail] = useState(() =>
+      readPendingVerification(),
+   );
    const [data, setData] = useState({
       email: "",
       password: "",
@@ -76,6 +89,18 @@ const Login = () => {
                   setTimeout(() => {
                      window.location.reload()
                   }, 1000)
+               } else if (res.data.notVerified) {
+                  // The account exists and the password was right; it was
+                  // never verified. Offer the verify step here instead of
+                  // leaving the user with a message and no action.
+                  const email = data.email.trim().toLowerCase();
+                  writePendingVerification(email);
+                  setPendingEmail(email);
+                  setViewMode('verify');
+                  showToast(
+                     'This email is not verified yet. Enter the code we sent, or ask for a new one.',
+                     "info",
+                  );
                } else {
                   showToast(res.data.message, "error");
                }
@@ -142,7 +167,24 @@ const Login = () => {
                      {viewMode === 'login' && "Sign In"}
                      {viewMode === 'forgot' && "Forgot Password"}
                      {viewMode === 'reset' && "Reset Password"}
+                     {viewMode === 'verify' && "Verify Email"}
                   </Typography>
+
+                  {viewMode === 'verify' && (
+                     <VerifyEmailPanel
+                        email={pendingEmail}
+                        notify={showToast}
+                        onVerified={() => {
+                           setPendingEmail('');
+                           setViewMode('login');
+                           showToast('Email verified. You can sign in now.', 'success');
+                        }}
+                        onCancel={() => {
+                           setPendingEmail('');
+                           setViewMode('login');
+                        }}
+                     />
+                  )}
 
                   {viewMode === 'login' && (
                      <Box component="form" onSubmit={handleSubmit} noValidate>

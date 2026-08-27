@@ -59,6 +59,13 @@ const userModel = mongoose.Schema(
       type: Date,
       select: false,
     },
+    // When the last verification mail went out. The resend cooldown is derived
+    // from this rather than from anything the client sends, so it cannot be
+    // stepped around by clearing storage or calling the API directly.
+    otpLastSentAt: {
+      type: Date,
+      select: false,
+    },
     resetToken: {
       type: String,
       select: false,
@@ -80,6 +87,7 @@ userModel.set("toJSON", {
     delete plain.password;
     delete plain.otp;
     delete plain.otpExpiry;
+    delete plain.otpLastSentAt;
     delete plain.resetToken;
     delete plain.resetTokenExpiry;
 
