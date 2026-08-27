@@ -1,52 +1,77 @@
-import React, { useContext, useState } from 'react';
-import NavBar from './NavBar';
-import UserHome from "./UserHome"
+import React, { useContext } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Container } from 'react-bootstrap';
-import AddCourse from '../user/teacher/AddCourse';
-import { UserContext } from '../../App';
-import EnrolledCourses from '../user/student/EnrolledCourses';
-import CourseContent from '../user/student/CourseContent';
-import AllCourses from '../admin/AllCourses';
-import { ROLES, hasAnyRole, isRole } from '../../lib/roles';
 
-// The role guards below compared against 'Teacher' and 'Admin' while the API
-// stores the role lowercase, so both fell through to <UserHome /> — which was
-// itself blank for the same reason. Comparisons go through lib/roles now.
+import NavBar from './NavBar';
+import UserHome from './UserHome';
+import AddCourse from '../user/teacher/AddCourse';
+import EnrolledCourses from '../user/student/EnrolledCourses';
+import AllCourses from '../admin/AllCourses';
+import { UserContext } from '../../App';
+import { PANELS, readPanelFromSearch, resolvePanel } from '../../lib/dashboardPanels';
+
+// #105. The panel used to live in this component's useState, and the setter was
+// handed to NavBar as a prop:
+//
+//   const [selectedComponent, setSelectedComponent] = useState('home');
+//   <NavBar setSelectedComponent={setSelectedComponent} />
+//
+// Only this file passed it, so the same navbar rendered from CourseContent.jsx
+// threw on every one of those links. The panel is read from the query string
+// now: the navbar navigates like anything else, works wherever it is rendered,
+// and each panel has an address a reload can restore.
+//
+// resolvePanel does what the old switch did through its `default:` and its two
+// role guards — an unknown panel, or one this account may not use, falls back
+// to home. It matters more now, because the value can be typed into the address
+// bar rather than only coming from a click.
+//
+// The old switch also carried a `case 'cousreSection': return <CourseContent />`
+// that nothing could reach: no caller ever set that name, and CourseContent
+// reads :courseId and :courseTitle from the route, which /dashboard does not
+// have. It is gone rather than ported. The course player is reached at
+// /courseSection/:courseId/:courseTitle, as it already was.
 
 const Dashboard = () => {
-   const user = useContext(UserContext)
-   const [selectedComponent, setSelectedComponent] = useState('home');
+   const user = useContext(UserContext);
+   const [searchParams] = useSearchParams();
 
-   const renderSelectedComponent = () => {
-      const userData = user?.userData;
+   const panel = resolvePanel(
+      readPanelFromSearch(searchParams),
+      user?.userData,
+   );
 
-      switch (selectedComponent) {
-         case 'home':
-            return <UserHome />
-         case 'addcourse':
-            if (hasAnyRole(userData, [ROLES.TEACHER, ROLES.ADMIN])) {
-               return <AddCourse />
-            }
-            return <UserHome />
-         case 'enrolledcourese':
-            return <EnrolledCourses />
-         case 'cousreSection':
-            return <CourseContent />
-         case 'cousres':
-            if (isRole(userData, ROLES.ADMIN)) {
-               return <AllCourses />
-            }
-            return <UserHome />
+   const renderPanel = () => {
+      switch (panel) {
+         case PANELS.ADD_COURSE:
+            return <AddCourse />;
+
+         case PANELS.ENROLLED:
+            return <EnrolledCourses />;
+
+         case PANELS.COURSES:
+            return <AllCourses />;
+
+         case PANELS.HOME:
          default:
-            return <UserHome />
+            return <UserHome />;
       }
    };
 
    return (
       <>
-         <NavBar setSelectedComponent={setSelectedComponent} />
-         <Container className='my-3 dashboard-glass' style={{maxWidth:'1100px', borderRadius:'22px', boxShadow:'0 8px 32px 0 #00e0ff22', background:'rgba(30,41,59,0.82)', padding:'32px 24px'}}>
-            {renderSelectedComponent()}
+         <NavBar />
+         <Container
+            className='my-3 dashboard-glass'
+            style={{
+               maxWidth: '1100px',
+               borderRadius: '22px',
+               boxShadow: '0 8px 32px 0 #00e0ff22',
+               background: 'rgba(30,41,59,0.82)',
+               padding: '32px 24px',
+            }}
+         >
+            {renderPanel()}
          </Container>
       </>
    );
