@@ -34,6 +34,13 @@ const getAllCoursesUserController = getTeacherCoursesController;
 const {
   getAllCoursesController,
 } = require("./courseListingController");
+const {
+  issueVerificationOtp,
+} = require("./emailVerificationController");
+const {
+  canResend,
+  isOtpExpired,
+} = require("../utils/otpCodes");
 //////////for registering/////////////////////////////
 const registerController = async (req, res) => {
   try {
@@ -50,21 +57,53 @@ const registerController = async (req, res) => {
       });
     }
 
-    const existsUser = await userSchema.findOne(buildEmailFilter(value.email));
-    if (existsUser) {
-      return res
-        .status(200)
-        .send({ message: "User already exists", success: false });
-    }
+    // Normalised so a differently cased address resolves to the same row, and
+    // with the OTP fields selected because an unverified registration is
+    // re-issued a code below rather than being turned away.
+    const existsUser = await userSchema
+      .findOne(buildEmailFilter(value.email))
+      .select("+otp +otpExpiry +otpLastSentAt");
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(value.password, salt);
 
-    // The code is generated from crypto.randomInt and only the bcrypt hash of
-    // it is persisted. The plaintext exists for the length of this handler and
-    // goes to the mailbox; it is never written to the database, so a copy of
-    // the collection is not a set of live credentials (#95).
-    const credential = await issueCredential();
+    if (existsUser) {
+      // A verified account is a real account. Nothing about it changes here.
+      if (existsUser.isVerified) {
+        return res
+          .status(200)
+          .send({ message: "User already exists", success: false });
+      }
+
+      // An unverified row is a registration that was never completed, and the
+      // address is not owned by anyone yet. Answering "User already exists"
+      // for it stranded the address permanently: the code had expired, there
+      // was no resend, and logging in only reported that the email was not
+      // verified. Treat this as the same person retrying, and take the details
+      // from the new attempt — they may be retrying because they mistyped
+      // something the first time.
+      existsUser.name = value.name;
+      existsUser.password = hashedPassword;
+      existsUser.type = value.type;
+
+      const reissued = await issueVerificationOtp({ user: existsUser });
+
+      if (!reissued.sent) {
+        return res.status(429).send({
+          success: false,
+          message: `A code was just sent. Please wait ${reissued.retryAfterSeconds}s before trying again.`,
+          retryAfterSeconds: reissued.retryAfterSeconds,
+          needsVerification: true,
+        });
+      }
+
+      return res.status(200).send({
+        message:
+          "That address already has an unverified registration. A new OTP has been sent to it.",
+        success: true,
+        needsVerification: true,
+      });
+    }
 
     const newUser = new userSchema({
       name: value.name,
@@ -72,18 +111,19 @@ const registerController = async (req, res) => {
       password: hashedPassword,
       type: value.type,
       isVerified: false,
-      otp: credential.hash,
-      otpExpiry: credential.expiresAt,
-      otpAttempts: 0,
     });
 
     try {
-      await newUser.save();
+      // Saves the document and mails the code. Kept in one helper so the
+      // resend route and this path cannot drift apart on code length or
+      // lifetime.
+      await issueVerificationOtp({ user: newUser });
     } catch (writeError) {
-      // The findOne above is a read, and the write happens later. Two requests
-      // for the same address both get past that check, and the unique index is
-      // what actually stops the second one. Answer it the same way the
-      // pre-check does rather than surfacing an opaque 500.
+      // The findOne above is a read and the write happens here, so two
+      // requests for the same address both get past that check and the unique
+      // index is what actually stops the second one. Answer it the same way
+      // the pre-check does rather than surfacing an opaque 500. The document
+      // is saved before the mail goes out, so a rejected insert sends nothing.
       if (isDuplicateOn(writeError, "email")) {
         return res
           .status(200)
@@ -93,15 +133,11 @@ const registerController = async (req, res) => {
       throw writeError;
     }
 
-    // Send email
-    await sendEmail({
-      to: value.email,
-      subject: "Verify your LearnHub Account",
-      text: `Your OTP code for verification is: ${credential.code}. This code is valid for 10 minutes.`,
-      html: `<p>Your OTP code for verification is: <strong>${credential.code}</strong>.</p><p>This code is valid for 10 minutes.</p>`,
+    return res.status(201).send({
+      message: "Registration initiated. Please verify the OTP sent to your email.",
+      success: true,
+      needsVerification: true,
     });
-
-    return res.status(201).send({ message: "Registration initiated. Please verify the OTP sent to your email.", success: true });
   } catch (error) {
     console.log(error);
     return res
@@ -317,16 +353,22 @@ const verifyOtpController = async (req, res) => {
 
     const user = await userSchema
       .findOne(buildEmailFilter(email))
-      .select("+otp +otpExpiry +otpAttempts");
+      .select("+otp +otpExpiry +otpAttempts +otpLastSentAt");
+
 
     if (!user) {
       // Same status, same message, and one bcrypt comparison's worth of time —
       // otherwise the absence of a comparison is the new oracle.
       await burnComparison();
 
-      return res
-        .status(400)
-        .send({ message: OTP_FAILURE_MESSAGE, success: false });
+      // Byte-identical to the failure below, `canResend` included. A field
+      // present for a real address and absent for an unknown one would be the
+      // oracle the uniform message exists to remove.
+      return res.status(400).send({
+        message: OTP_FAILURE_MESSAGE,
+        success: false,
+        canResend: true,
+      });
     }
 
     if (user.isVerified) {
@@ -353,16 +395,27 @@ const verifyOtpController = async (req, res) => {
         );
       }
 
-      return res
-        .status(400)
-        .send({ message: OTP_FAILURE_MESSAGE, success: false });
+      // `canResend` keeps the "send a new code" button on screen (#73), and is
+      // deliberately constant rather than derived from user.otpLastSentAt.
+      //
+      // Deriving it would put the enumeration oracle straight back: an unknown
+      // address has no send time, so it would answer differently from a real
+      // one on cooldown, and this response is uniform on purpose (#95). The
+      // cooldown is still enforced and still reported — by /resend-otp, which
+      // owns it and answers 429 with the exact wait. VerifyEmailPanel already
+      // reads `retryAfterSeconds` off that response.
+      return res.status(400).send({
+        message: OTP_FAILURE_MESSAGE,
+        success: false,
+        canResend: true,
+      });
     }
 
     await userSchema.updateOne(
       { _id: user._id },
       {
         $set: { isVerified: true },
-        $unset: { otp: "", otpExpiry: "", otpAttempts: "" },
+        $unset: { otp: "", otpExpiry: "", otpAttempts: "", otpLastSentAt: "" },
       },
     );
 

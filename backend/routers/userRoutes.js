@@ -23,6 +23,9 @@ const {
 const {
   completeSectionController,
 } = require("../controllers/progressController");
+const {
+  resendOtpController,
+} = require("../controllers/emailVerificationController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
@@ -142,6 +145,21 @@ router.post(
   credentialRateLimiter("verify-otp"),
   credentialThrottle("verify-otp"),
   verifyOtpController,
+);
+
+// Without this an account whose OTP expired had no route back: registering
+// again answered "User already exists" and logging in answered "Email is not
+// verified". The cooldown lives in the controller, not here, so it applies
+// however the code is requested.
+//
+// Rate limited like every other credential endpoint — it sends mail, so it is
+// exactly the kind of route that should not accept unlimited requests. No
+// failure throttle, for the same reason /forgot-password has none: it answers
+// the same way for known and unknown addresses, so there is no failure to count.
+router.post(
+  "/resend-otp",
+  credentialRateLimiter("resend-otp"),
+  resendOtpController,
 );
 
 // No failure throttle here: this endpoint answers the same way for known and
