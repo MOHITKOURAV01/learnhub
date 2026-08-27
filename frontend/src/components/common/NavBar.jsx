@@ -1,41 +1,42 @@
 import React, { useContext, useState, useEffect, useRef } from 'react'
 import { Navbar, Nav, Button, Container } from 'react-bootstrap';
 import { UserContext } from '../../App';
-import { NavLink } from 'react-router-dom';
-import { ROLES, isRole } from "../../lib/roles";
+import { Link } from 'react-router-dom';
 import SavedCoursesNavLink from "../bookmarks/SavedCoursesNavLink";
+import ThemeToggle from "../../theme/ThemeToggle";
 import axiosInstance, { clearSession } from "./AxiosInstance";
+import { panelPath, visiblePanelLinks } from "../../lib/dashboardPanels";
 
-const NavBar = ({ setSelectedComponent }) => {
+// #105. These links used to call a prop:
+//
+//   const NavBar = ({ setSelectedComponent }) => {
+//      const handleOptionClick = (component) => setSelectedComponent(component);
+//
+// Only Dashboard.jsx passed it. CourseContent.jsx renders `<NavBar />` bare, so
+// on the course player every one of them threw `TypeError:
+// setSelectedComponent is not a function` on click, and because the handler
+// runs before React Router's own click handling nothing navigated either — the
+// link was simply dead, on the page a student spends the whole course on.
+//
+// They were also `<NavLink>` elements with no `to`, which React Router resolves
+// against the current location: they rendered as links pointing at the page you
+// were already on, unusable by middle click or "open in new tab". `Home` was a
+// raw `<a href>`, a full document load that tore down every provider.
+//
+// The panel is part of the URL now, so the navbar navigates like any other
+// link, works on every page that renders it, and needs no prop at all.
+
+const NavBar = () => {
 
    const user = useContext(UserContext)
-   const [darkMode, setDarkMode] = useState(false);
    const [settingsOpen, setSettingsOpen] = useState(false);
    const settingsRef = useRef();
 
-   useEffect(() => {
-      // On mount, set dark mode from localStorage
-      const isDark = localStorage.getItem('darkMode') === 'true';
-      setDarkMode(isDark);
-      if (isDark) {
-        document.body.classList.add('dark-mode');
-      } else {
-        document.body.classList.remove('dark-mode');
-      }
-   }, []);
-
-   const toggleDarkMode = () => {
-      setDarkMode((prev) => {
-        const newMode = !prev;
-        if (newMode) {
-          document.body.classList.add('dark-mode');
-        } else {
-          document.body.classList.remove('dark-mode');
-        }
-        localStorage.setItem('darkMode', newMode);
-        return newMode;
-      });
-   };
+   // The theme used to live in this component's local state, applied in a
+   // useEffect and stored under a third localStorage key written as a boolean
+   // and read back as a string. It belongs to the whole application, not to a
+   // navbar that renders for signed-in users only, so it moved to
+   // ThemeProvider (#97).
 
    // Close settings dropdown on outside click
    useEffect(() => {
@@ -56,6 +57,11 @@ const NavBar = ({ setSelectedComponent }) => {
    }
 
 
+   // Rendered from lib/dashboardPanels, which is the same list Dashboard
+   // validates the incoming panel against — the navbar cannot advertise a link
+   // the dashboard would refuse to open.
+   const panelLinks = visiblePanelLinks(user.userData);
+
    const handleLogout = async () => {
       // Tell the server first, so the sign-out is recorded — the activity log
       // has always had a "logout" action and a filter for it, and nothing ever
@@ -71,10 +77,6 @@ const NavBar = ({ setSelectedComponent }) => {
       clearSession();
       window.location.href = "/";
    }
-   const handleOptionClick = (component) => {
-      setSelectedComponent(component);
-   };
-
    return (
       <Navbar expand="lg" className="premium-navbar" style={{backdropFilter:'blur(12px) saturate(1.2)', background:'rgba(30,41,59,0.82)', borderRadius:'0 0 18px 18px', boxShadow:'0 4px 24px #00e0ff22', position:'relative', zIndex: 1040}}>
          <Container fluid>
@@ -84,7 +86,11 @@ const NavBar = ({ setSelectedComponent }) => {
             <Navbar.Toggle aria-controls="navbarScroll" />
             <Navbar.Collapse id="navbarScroll">
             <Nav className="me-auto my-2 my-lg-0 premium-nav-links" style={{ maxHeight: '100px', alignItems:'center', position: 'relative', zIndex: 1050 }} navbarScroll>
-               <a className="premium-btn" href="/dashboard" style={{zIndex: 1051}}>Home</a>
+               {/* A <Link>, not an <a href>. Inside a BrowserRouter the anchor
+                   was a full document load that tore down AuthProvider,
+                   BookmarksProvider and ThemeProvider and re-fetched
+                   everything. */}
+               <Link className="premium-btn" to="/dashboard" style={{zIndex: 1051}}>Home</Link>
                <div ref={settingsRef} style={{display:'inline-flex', alignItems:'center', position:'relative', zIndex: 1051}}>
                  <button
                    className="premium-btn settings-btn"
@@ -97,45 +103,35 @@ const NavBar = ({ setSelectedComponent }) => {
                    <span aria-hidden="true" style={{fontSize: '1.3rem'}}>⚙️</span> <span className="d-none d-md-inline">Settings</span>
                  </button>
                  {settingsOpen && (
-                   <div style={{position:'absolute', top:'110%', left:0, background:'#232526', color:'#fff', borderRadius:10, boxShadow:'0 2px 12px #00e0ff33', minWidth:180, zIndex:2000, padding:'12px 0', animation:'fadeInDropdown 0.25s cubic-bezier(.4,0,.2,1)'}}>
-                     <button
-                       className="darkmode-toggle-btn"
-                       style={{width:'100%', background:'none', color:'#fff', border:'none', textAlign:'left', padding:'8px 18px', fontWeight:700, display:'flex', alignItems:'center', gap:8, cursor:'pointer'}}
-                       onClick={() => { toggleDarkMode(); setSettingsOpen(false); }}
-                     >
-                       <span style={{fontSize:'1.2rem'}}>{darkMode ? '🌞' : '🌙'}</span> {darkMode ? 'Light Mode' : 'Dark Mode'}
-                     </button>
-                     <button
-                       className="brightness-toggle-btn"
-                       style={{width:'100%', background:'none', color:'#fff', border:'none', textAlign:'left', padding:'8px 18px', fontWeight:700, display:'flex', alignItems:'center', gap:8, cursor:'pointer'}}
-                       onClick={() => {
-                         const current = document.body.style.filter || '';
-                         if (current.includes('brightness(1.2)')) {
-                           document.body.style.filter = '';
-                         } else {
-                           document.body.style.filter = 'brightness(1.2)';
-                         }
-                         setSettingsOpen(false);
-                       }}
-                     >
-                       <span style={{fontSize:'1.2rem'}}>💡</span> Toggle Brightness
-                     </button>
+                   <div className="settings-dropdown" style={{position:'absolute', top:'110%', left:0, minWidth:200, zIndex:2000}}>
+                     <p className="settings-dropdown-heading">Appearance</p>
+                     {/* The same control the signed-out navbar renders, so the
+                         preference is reachable from every page rather than
+                         only from a menu that needs a session. The old
+                         "Toggle Brightness" button next to it wrote
+                         document.body.style.filter inline, was never
+                         persisted, and was undone by any full navigation. */}
+                     <ThemeToggle className="theme-toggle-block" />
                    </div>
                  )}
                </div>
-                  {/* These compared against 'Teacher', 'Admin' and 'Student'
-                      while the API stores the role lowercase, so none of the
-                      three links ever rendered — a teacher had no route to the
-                      Add Course form at all. */}
-                  {isRole(user.userData, ROLES.TEACHER) && (
-                     <NavLink className="premium-btn" onClick={() => handleOptionClick('addcourse')}>Add Course</NavLink>
-                  )}
-                  {isRole(user.userData, ROLES.ADMIN) && (
-                     <NavLink className="premium-btn" onClick={() => handleOptionClick('cousres')}>Courses</NavLink>
-                  )}
-                  {isRole(user.userData, ROLES.STUDENT) && (
-                     <NavLink className="premium-btn" onClick={() => handleOptionClick('enrolledcourese')}>Enrolled Courses</NavLink>
-                  )}
+                  {/* Real links to real addresses. Each one is reachable by
+                      keyboard, can be opened in a new tab, and survives a
+                      reload — none of which was true while the panel lived in
+                      one component's useState.
+
+                      The role comparison still goes through lib/roles (#84);
+                      it has moved into visiblePanelLinks so the navbar and the
+                      dashboard cannot disagree about who may see what. */}
+                  {panelLinks.map(({ panel, label }) => (
+                     <Link
+                        key={panel}
+                        className="premium-btn"
+                        to={panelPath(panel)}
+                     >
+                        {label}
+                     </Link>
+                  ))}
                </Nav>
                <Nav className="premium-nav-links" style={{alignItems:'center'}}>
                   <h5 className='mx-3' style={{color:'#00e0ff', fontWeight:700, textShadow:'0 2px 12px #00e0ff55', margin:0, display:'flex', alignItems:'center'}}>Hi {user.userData.name}</h5>

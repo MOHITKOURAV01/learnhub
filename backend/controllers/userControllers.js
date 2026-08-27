@@ -11,14 +11,33 @@ const {
   validateRegistration,
 } = require("../utils/registrationValidation");
 const {
+  buildEmailFilter,
+  isDuplicateOn,
+} = require("../utils/accountIdentity");
+const {
   postCourseController,
 } = require("./courseCreationController");
+const {
+  getTeacherCoursesController,
+} = require("./teacherCoursesController");
+
+// The route wiring imports this from teacherCoursesController directly. The
+// aggregator keeps re-exporting it under its original name so nothing that
+// still reads it from here has to change.
+const getAllCoursesUserController = getTeacherCoursesController;
 const {
   getAllCoursesController,
 } = require("./courseListingController");
 const {
   getCourseContentController,
 } = require("./courseContentController");
+const {
+  issueVerificationOtp,
+} = require("./emailVerificationController");
+const {
+  canResend,
+  isOtpExpired,
+} = require("../utils/otpCodes");
 
 // The route wiring imports this from courseContentController directly. The
 // aggregator keeps re-exporting it under its original name so nothing that
@@ -40,19 +59,53 @@ const registerController = async (req, res) => {
       });
     }
 
-    const existsUser = await userSchema.findOne({ email: value.email });
-    if (existsUser) {
-      return res
-        .status(200)
-        .send({ message: "User already exists", success: false });
-    }
+    // Normalised so a differently cased address resolves to the same row, and
+    // with the OTP fields selected because an unverified registration is
+    // re-issued a code below rather than being turned away.
+    const existsUser = await userSchema
+      .findOne(buildEmailFilter(value.email))
+      .select("+otp +otpExpiry +otpLastSentAt");
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(value.password, salt);
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    if (existsUser) {
+      // A verified account is a real account. Nothing about it changes here.
+      if (existsUser.isVerified) {
+        return res
+          .status(200)
+          .send({ message: "User already exists", success: false });
+      }
+
+      // An unverified row is a registration that was never completed, and the
+      // address is not owned by anyone yet. Answering "User already exists"
+      // for it stranded the address permanently: the code had expired, there
+      // was no resend, and logging in only reported that the email was not
+      // verified. Treat this as the same person retrying, and take the details
+      // from the new attempt — they may be retrying because they mistyped
+      // something the first time.
+      existsUser.name = value.name;
+      existsUser.password = hashedPassword;
+      existsUser.type = value.type;
+
+      const reissued = await issueVerificationOtp({ user: existsUser });
+
+      if (!reissued.sent) {
+        return res.status(429).send({
+          success: false,
+          message: `A code was just sent. Please wait ${reissued.retryAfterSeconds}s before trying again.`,
+          retryAfterSeconds: reissued.retryAfterSeconds,
+          needsVerification: true,
+        });
+      }
+
+      return res.status(200).send({
+        message:
+          "That address already has an unverified registration. A new OTP has been sent to it.",
+        success: true,
+        needsVerification: true,
+      });
+    }
 
     const newUser = new userSchema({
       name: value.name,
@@ -60,20 +113,33 @@ const registerController = async (req, res) => {
       password: hashedPassword,
       type: value.type,
       isVerified: false,
-      otp,
-      otpExpiry,
-    });
-    await newUser.save();
-
-    // Send email
-    await sendEmail({
-      to: value.email,
-      subject: "Verify your LearnHub Account",
-      text: `Your OTP code for verification is: ${otp}. This code is valid for 10 minutes.`,
-      html: `<p>Your OTP code for verification is: <strong>${otp}</strong>.</p><p>This code is valid for 10 minutes.</p>`,
     });
 
-    return res.status(201).send({ message: "Registration initiated. Please verify the OTP sent to your email.", success: true });
+    try {
+      // Saves the document and mails the code. Kept in one helper so the
+      // resend route and this path cannot drift apart on code length or
+      // lifetime.
+      await issueVerificationOtp({ user: newUser });
+    } catch (writeError) {
+      // The findOne above is a read and the write happens here, so two
+      // requests for the same address both get past that check and the unique
+      // index is what actually stops the second one. Answer it the same way
+      // the pre-check does rather than surfacing an opaque 500. The document
+      // is saved before the mail goes out, so a rejected insert sends nothing.
+      if (isDuplicateOn(writeError, "email")) {
+        return res
+          .status(200)
+          .send({ message: "User already exists", success: false });
+      }
+
+      throw writeError;
+    }
+
+    return res.status(201).send({
+      message: "Registration initiated. Please verify the OTP sent to your email.",
+      success: true,
+      needsVerification: true,
+    });
   } catch (error) {
     console.log(error);
     return res
@@ -88,10 +154,13 @@ const loginController = async (req, res) => {
     typeof req.body?.email === "string" ? req.body.email : "";
 
   try {
+    // Addresses are stored lowercase, so the lookup has to be normalised too.
+    // Signing in as "User@Example.com" used to miss the row entirely and
+    // report "User not found" for an account that exists.
+    const emailFilter = buildEmailFilter(req.body?.email);
+
     // password is select: false on the schema, so ask for it explicitly.
-    const user = await userSchema
-      .findOne({ email: req.body.email })
-      .select("+password");
+    const user = await userSchema.findOne(emailFilter).select("+password");
     if (!user) {
       // A failed attempt used to leave no trace at all, so the log could not
       // answer the one question an audit log exists for. The attempted address
@@ -190,28 +259,10 @@ const logoutController = async (req, res) => {
 // Implemented in courseCreationController so upload cleanup is testable.
 
 ///all courses for the teacher
-const getAllCoursesUserController = async (req, res) => {
-  try {
-    const allCourses = await courseSchema.find({ userId: req.body.userId });
-    if (!allCourses) {
-      res.send({
-        success: false,
-        message: "No Courses Found",
-      });
-    } else {
-      res.send({
-        success: true,
-        message: "All Courses Fetched Successfully",
-        data: allCourses,
-      });
-    }
-  } catch (error) {
-    console.error("Error in fetching courses:", error);
-    res
-      .status(500)
-      .send({ success: false, message: "Failed to fetch courses" });
-  }
-};
+// Implemented in teacherCoursesController so the list is paginated and
+// projected like every other list endpoint, the owner is resolved from
+// req.user rather than req.body.userId, and the section count is computed
+// server-side for all three shapes `sections` takes (#94).
 
 ///delete courses by the teacher
 // Implemented in courseDeletionController so ownership is enforced against the
@@ -242,20 +293,28 @@ const verifyOtpController = async (req, res) => {
       return res.status(400).send({ message: "Email and OTP are required", success: false });
     }
     const user = await userSchema
-      .findOne({ email })
-      .select("+otp +otpExpiry");
+      .findOne(buildEmailFilter(email))
+      .select("+otp +otpExpiry +otpLastSentAt");
     if (!user) {
       return res.status(404).send({ message: "User not found", success: false });
     }
     if (user.isVerified) {
       return res.status(200).send({ message: "User already verified", success: true });
     }
-    if (user.otp !== otp || user.otpExpiry < Date.now()) {
-      return res.status(400).send({ message: "Invalid or expired OTP", success: false });
+    if (user.otp !== String(otp).trim() || isOtpExpired(user.otpExpiry)) {
+      // `canResend` tells the client whether offering a "send a new code"
+      // button will actually do anything, so the UI does not present an action
+      // that answers 429.
+      return res.status(400).send({
+        message: "Invalid or expired OTP",
+        success: false,
+        canResend: canResend(user.otpLastSentAt),
+      });
     }
     user.isVerified = true;
     user.otp = undefined;
     user.otpExpiry = undefined;
+    user.otpLastSentAt = undefined;
     await user.save();
     return res.status(200).send({ message: "Email verified successfully", success: true });
   } catch (error) {
@@ -270,7 +329,7 @@ const forgotPasswordController = async (req, res) => {
     if (!email) {
       return res.status(400).send({ message: "Email is required", success: false });
     }
-    const user = await userSchema.findOne({ email });
+    const user = await userSchema.findOne(buildEmailFilter(email));
     if (!user) {
       return res.status(200).send({ message: "If that email exists, an OTP/reset token has been sent.", success: true });
     }
@@ -306,7 +365,7 @@ const resetPasswordController = async (req, res) => {
       return res.status(400).send({ message: "Password must be at least 6 characters.", success: false });
     }
     const user = await userSchema
-      .findOne({ email })
+      .findOne(buildEmailFilter(email))
       .select("+resetToken +resetTokenExpiry");
     if (!user) {
       return res.status(404).send({ message: "User not found", success: false });
