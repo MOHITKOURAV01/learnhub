@@ -20,6 +20,7 @@ import { AuthProvider } from "./auth/AuthProvider";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import { useAuth } from "./auth/authContext";
 import { ProtectedRoute, PublicOnlyRoute } from "./auth/ProtectedRoute";
+import { BOOKMARK_ROLES } from "./lib/bookmarkAccess";
 
 // Still exported with its original { userData, userLoggedIn } shape: NavBar,
 // Dashboard, UserHome, AllCourses, AddCourse and CourseContent all read it and
@@ -68,11 +69,14 @@ function AppRoutes() {
           />
 
           {/* Bookmarks are a student-only feature on the API side, so the
-              route says so instead of letting the page mount and fail. */}
+              route says so instead of letting the page mount and fail. The
+              list comes from lib/bookmarkAccess rather than being written out
+              here, because the navbar and the provider read the same value —
+              a guard that disagrees with what the UI offers is #115. */}
           <Route
             path="/saved-courses"
             element={
-              <ProtectedRoute allowedRoles={["student"]}>
+              <ProtectedRoute allowedRoles={BOOKMARK_ROLES}>
                 <SavedCourses />
               </ProtectedRoute>
             }

@@ -10,6 +10,12 @@ import React, {
 import axiosInstance, {
   getToken,
 } from "../components/common/AxiosInstance";
+import { useAuth } from "../auth/authContext";
+import {
+  bookmarkDenialMessage,
+  bookmarkDenialReason,
+  shouldLoadBookmarks,
+} from "../lib/bookmarkAccess";
 
 const BookmarksContext = createContext(null);
 
@@ -19,10 +25,25 @@ export const BookmarksProvider = ({ children }) => {
   const [ready, setReady] = useState(false);
   const requestVersion = useRef(0);
 
-  const isAuthenticated = Boolean(getToken());
+  // This provider wraps the whole application, so anything it does on mount it
+  // does on every page. It used to fetch the wishlist for anyone holding a
+  // token, and `/api/bookmarks` is student-only, so an educator or an admin
+  // paid one failed authenticated round trip per page load and got a 403 in
+  // the console for it (#115).
+  //
+  // The session comes from AuthProvider rather than from a bare getToken(),
+  // because the role is the thing being asked about and readSession is what
+  // validates the token it came with. getToken stays imported for the same
+  // reason it always was — the axios interceptor owns the storage keys.
+  const { user, isAuthenticated: hasSession } = useAuth();
+
+  const isAuthenticated = hasSession && Boolean(getToken());
+  const enabled = shouldLoadBookmarks(user, isAuthenticated);
 
   const refreshBookmarks = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!enabled) {
+      // `ready` still settles. Anything waiting on it — a page deciding
+      // whether to render an empty state — would otherwise wait forever.
       setBookmarkIds(new Set());
       setReady(true);
       return;
@@ -51,7 +72,7 @@ export const BookmarksProvider = ({ children }) => {
         setReady(true);
       }
     }
-  }, [isAuthenticated]);
+  }, [enabled]);
 
   useEffect(() => {
     refreshBookmarks();
@@ -97,9 +118,14 @@ export const BookmarksProvider = ({ children }) => {
 
   const toggleBookmark = useCallback(
     async (courseId) => {
-      if (!isAuthenticated) {
-        const error = new Error("Sign in to save courses.");
-        error.code = "AUTH_REQUIRED";
+      // Two reasons used to be one. A signed-out visitor is sent to the login
+      // screen — the feature is theirs. An educator cannot get one by signing
+      // in again, and firing the request only to be told 403 helps nobody.
+      const denial = bookmarkDenialReason(user, isAuthenticated);
+
+      if (denial) {
+        const error = new Error(bookmarkDenialMessage(denial));
+        error.code = denial === "signed-out" ? "AUTH_REQUIRED" : "ROLE_REQUIRED";
         throw error;
       }
 
@@ -125,6 +151,7 @@ export const BookmarksProvider = ({ children }) => {
       bookmarkIds,
       isAuthenticated,
       setBookmarkLocally,
+      user,
     ],
   );
 
@@ -171,6 +198,9 @@ export const BookmarksProvider = ({ children }) => {
       loading,
       ready,
       isAuthenticated,
+      // Whether this session has a wishlist at all, so a consumer can render
+      // nothing rather than a control that cannot work.
+      enabled,
     }),
     [
       bookmarkIds,
@@ -181,6 +211,7 @@ export const BookmarksProvider = ({ children }) => {
       loading,
       ready,
       isAuthenticated,
+      enabled,
     ],
   );
 

@@ -10,12 +10,22 @@ const BookmarkButton = ({
   onChange,
 }) => {
   const navigate = useNavigate();
-  const { isBookmarked, toggleBookmark, isAuthenticated } =
+  const { isBookmarked, toggleBookmark, isAuthenticated, enabled } =
     useBookmarks();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const bookmarked = isBookmarked(courseId);
+
+  // A signed-in account without a wishlist is not offered the control. The
+  // catalogue is reachable by an admin through the dashboard's Courses panel,
+  // and the star used to render there and answer 403 when clicked (#115).
+  //
+  // A signed-out visitor still sees it: the feature is theirs, and the button
+  // sends them to the login screen.
+  if (isAuthenticated && !enabled) {
+    return null;
+  }
 
   const handleClick = async (event) => {
     event.preventDefault();
