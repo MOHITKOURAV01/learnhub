@@ -36,6 +36,7 @@
 // rather than a whole document.
 
 const { escapeRegex, normalizeText } = require("./courseListing");
+const { accessTypeExpression } = require("./coursePricing");
 
 const ALLOWED_SORTS = new Set([
   "recent",
@@ -120,22 +121,22 @@ function parseSavedCoursesQuery(query = {}) {
 /**
  * Whether the joined course counts as paid.
  *
- * isPaidCourse was `/\d/.test(String(price || ""))` — any digit anywhere. That
- * is deliberately kept rather than tightened: changing it would silently move
- * courses between the free and paid filters on data already saved.
+ * This was `/[0-9]/` — any digit anywhere — and a comment saying the looseness
+ * was kept deliberately, because tightening it moves courses between the Free
+ * and Paid filters on wishlists people have already saved.
+ *
+ * That reasoning held while there was no shared rule to move towards. There is
+ * one now (#114), and the looseness was not harmless: a course priced "0" read
+ * Free on its catalogue card and Paid on the wishlist card next to it, and the
+ * wishlist's Free filter hid it.
+ *
+ * So it is aligned, and the behaviour change is real and worth stating: a
+ * saved course whose price reads as zero moves from Paid to Free here. It
+ * moves *onto* the label the catalogue has always shown it under, which is the
+ * point. Nothing is stored per bookmark — accessType is computed on read — so
+ * there is no data migration and no way for the two to drift back apart.
  */
-const ACCESS_EXPRESSION = {
-  $cond: [
-    {
-      $regexMatch: {
-        input: { $ifNull: ["$course.C_price", ""] },
-        regex: "[0-9]",
-      },
-    },
-    "paid",
-    "free",
-  ],
-};
+const ACCESS_EXPRESSION = accessTypeExpression("$course.C_price");
 
 /**
  * The numeric price, for the two price sorts.
