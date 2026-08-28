@@ -11,6 +11,12 @@ const {
   validateRegistration,
 } = require("../utils/registrationValidation");
 const {
+  VERIFICATION,
+  burnComparison,
+  issueCredential,
+  verifyCredential,
+} = require("../utils/otpCredentials");
+const {
   buildEmailFilter,
   isDuplicateOn,
 } = require("../utils/accountIdentity");
@@ -323,40 +329,112 @@ const sendCourseContentController = async (req, res) => {
 // Implemented in enrolledCoursesController so the batched lookup, the
 // deleted-course filtering and the progress summary are unit testable.
 
+// One answer for every way verification can fail: no such address, no pending
+// code, the wrong code, an expired code, too many attempts. Distinguishing them
+// is what let an unauthenticated caller confirm or deny any email address in a
+// single request — forgotPasswordController in this same file already answers
+// uniformly, and these two did not (#95).
+const OTP_FAILURE_MESSAGE = "Invalid or expired OTP";
+const RESET_FAILURE_MESSAGE = "Invalid or expired reset token/OTP";
+
+/**
+ * Clears a credential and its attempt counter.
+ *
+ * Used on every terminal outcome — spent, expired, or locked out — so a code
+ * cannot be worked on after it has stopped being usable.
+ */
+const clearCredential = async (user, prefix) => {
+  await userSchema.updateOne(
+    { _id: user._id },
+    {
+      $unset: {
+        [prefix]: "",
+        [`${prefix}Expiry`]: "",
+        [`${prefix}Attempts`]: "",
+      },
+    },
+  );
+};
+
 const verifyOtpController = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp } = req.body || {};
     if (!email || !otp) {
       return res.status(400).send({ message: "Email and OTP are required", success: false });
     }
+
     const user = await userSchema
       .findOne(buildEmailFilter(email))
-      .select("+otp +otpExpiry +otpLastSentAt");
+      .select("+otp +otpExpiry +otpAttempts +otpLastSentAt");
+
+
     if (!user) {
-      return res.status(404).send({ message: "User not found", success: false });
-    }
-    if (user.isVerified) {
-      return res.status(200).send({ message: "User already verified", success: true });
-    }
-    if (user.otp !== String(otp).trim() || isOtpExpired(user.otpExpiry)) {
-      // `canResend` tells the client whether offering a "send a new code"
-      // button will actually do anything, so the UI does not present an action
-      // that answers 429.
+      // Same status, same message, and one bcrypt comparison's worth of time —
+      // otherwise the absence of a comparison is the new oracle.
+      await burnComparison();
+
+      // Byte-identical to the failure below, `canResend` included. A field
+      // present for a real address and absent for an unknown one would be the
+      // oracle the uniform message exists to remove.
       return res.status(400).send({
-        message: "Invalid or expired OTP",
+        message: OTP_FAILURE_MESSAGE,
         success: false,
-        canResend: canResend(user.otpLastSentAt),
+        canResend: true,
       });
     }
-    user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpiry = undefined;
-    user.otpLastSentAt = undefined;
-    await user.save();
+
+    if (user.isVerified) {
+      // Verified accounts should not be carrying a live code around.
+      if (user.otp) {
+        await clearCredential(user, "otp");
+      }
+
+      return res.status(200).send({ message: "User already verified", success: true });
+    }
+
+    const result = await verifyCredential(
+      { hash: user.otp, expiresAt: user.otpExpiry, attempts: user.otpAttempts },
+      otp,
+    );
+
+    if (result.status !== VERIFICATION.OK) {
+      if (result.shouldClear) {
+        await clearCredential(user, "otp");
+      } else {
+        await userSchema.updateOne(
+          { _id: user._id },
+          { $set: { otpAttempts: result.attempts } },
+        );
+      }
+
+      // `canResend` keeps the "send a new code" button on screen (#73), and is
+      // deliberately constant rather than derived from user.otpLastSentAt.
+      //
+      // Deriving it would put the enumeration oracle straight back: an unknown
+      // address has no send time, so it would answer differently from a real
+      // one on cooldown, and this response is uniform on purpose (#95). The
+      // cooldown is still enforced and still reported — by /resend-otp, which
+      // owns it and answers 429 with the exact wait. VerifyEmailPanel already
+      // reads `retryAfterSeconds` off that response.
+      return res.status(400).send({
+        message: OTP_FAILURE_MESSAGE,
+        success: false,
+        canResend: true,
+      });
+    }
+
+    await userSchema.updateOne(
+      { _id: user._id },
+      {
+        $set: { isVerified: true },
+        $unset: { otp: "", otpExpiry: "", otpAttempts: "", otpLastSentAt: "" },
+      },
+    );
+
     return res.status(200).send({ message: "Email verified successfully", success: true });
   } catch (error) {
     console.error(error);
-    return res.status(500).send({ success: false, message: error.message });
+    return res.status(500).send({ success: false, message: "Unable to verify the code" });
   }
 };
 
@@ -371,18 +449,26 @@ const forgotPasswordController = async (req, res) => {
       return res.status(200).send({ message: "If that email exists, an OTP/reset token has been sent.", success: true });
     }
     
-    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
-    const resetTokenExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    // Issuing a new code supersedes any previous one, and resets the attempt
+    // counter with it — otherwise a locked-out account could never recover.
+    const credential = await issueCredential();
 
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = resetTokenExpiry;
-    await user.save();
+    await userSchema.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          resetToken: credential.hash,
+          resetTokenExpiry: credential.expiresAt,
+          resetTokenAttempts: 0,
+        },
+      },
+    );
 
     await sendEmail({
       to: email,
       subject: "LearnHub Password Reset Request",
-      text: `Your password reset code is: ${resetToken}. This code is valid for 10 minutes.`,
-      html: `<p>Your password reset code is: <strong>${resetToken}</strong>.</p><p>This code is valid for 10 minutes.</p>`,
+      text: `Your password reset code is: ${credential.code}. This code is valid for 10 minutes.`,
+      html: `<p>Your password reset code is: <strong>${credential.code}</strong>.</p><p>This code is valid for 10 minutes.</p>`,
     });
 
     return res.status(200).send({ message: "If that email exists, an OTP/reset token has been sent.", success: true });
@@ -403,21 +489,63 @@ const resetPasswordController = async (req, res) => {
     }
     const user = await userSchema
       .findOne(buildEmailFilter(email))
-      .select("+resetToken +resetTokenExpiry");
+      .select("+resetToken +resetTokenExpiry +resetTokenAttempts");
+
     if (!user) {
-      return res.status(404).send({ message: "User not found", success: false });
+      // 404 "User not found" here confirmed the address to anyone who asked.
+      await burnComparison();
+
+      return res
+        .status(400)
+        .send({ message: RESET_FAILURE_MESSAGE, success: false });
     }
-    if (user.resetToken !== token || user.resetTokenExpiry < Date.now()) {
-      return res.status(400).send({ message: "Invalid or expired reset token/OTP", success: false });
+
+    const result = await verifyCredential(
+      {
+        hash: user.resetToken,
+        expiresAt: user.resetTokenExpiry,
+        attempts: user.resetTokenAttempts,
+      },
+      token,
+    );
+
+    if (result.status !== VERIFICATION.OK) {
+      if (result.shouldClear) {
+        await clearCredential(user, "resetToken");
+      } else {
+        await userSchema.updateOne(
+          { _id: user._id },
+          { $set: { resetTokenAttempts: result.attempts } },
+        );
+      }
+
+      return res
+        .status(400)
+        .send({ message: RESET_FAILURE_MESSAGE, success: false });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
-    user.password = hashedPassword;
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
-    user.isVerified = true; // Auto-verify email
-    await user.save();
+
+    // Holding the code proves control of the mailbox, so the address is marked
+    // verified here. This was already the behaviour; it is stated now rather
+    // than left as an unexplained side effect.
+    await userSchema.updateOne(
+      { _id: user._id },
+      {
+        $set: { password: hashedPassword, isVerified: true },
+        $unset: {
+          resetToken: "",
+          resetTokenExpiry: "",
+          resetTokenAttempts: "",
+          // A password change ends any pending verification code too.
+          otp: "",
+          otpExpiry: "",
+          otpAttempts: "",
+        },
+      },
+    );
+
     return res.status(200).send({ message: "Password has been successfully updated", success: true });
   } catch (error) {
     console.error(error);

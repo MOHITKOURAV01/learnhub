@@ -51,12 +51,26 @@ const userModel = mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // The three otp* fields and the three resetToken* fields hold a bcrypt
+    // hash, an expiry and a failed-attempt count. They used to hold the code
+    // itself, so anything with read access to this collection — a backup, a
+    // replica, a mongodump in a CI artefact — carried a live credential for
+    // every account with a pending code (#95).
+    //
+    // `select: false` is kept: it stops a stray find() returning even the
+    // hash, and the controllers ask for these explicitly where they need them.
     otp: {
       type: String,
       select: false,
     },
     otpExpiry: {
       type: Date,
+      select: false,
+    },
+    // No default: an absent counter means no pending code, and $unset has to
+    // mean gone. verifyCredential reads a missing value as zero.
+    otpAttempts: {
+      type: Number,
       select: false,
     },
     // When the last verification mail went out. The resend cooldown is derived
@@ -74,6 +88,10 @@ const userModel = mongoose.Schema(
       type: Date,
       select: false,
     },
+    resetTokenAttempts: {
+      type: Number,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -87,9 +105,11 @@ userModel.set("toJSON", {
     delete plain.password;
     delete plain.otp;
     delete plain.otpExpiry;
+    delete plain.otpAttempts;
     delete plain.otpLastSentAt;
     delete plain.resetToken;
     delete plain.resetTokenExpiry;
+    delete plain.resetTokenAttempts;
 
     return plain;
   },
