@@ -29,6 +29,10 @@ const {
 const {
   courseVideoController,
 } = require("../controllers/courseVideoController");
+const {
+  getCourseForEditController,
+  updateCourseController,
+} = require("../controllers/courseUpdateController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
@@ -109,6 +113,28 @@ router.get(
   authMiddleware,
   checkRole(["teacher", "admin"]),
   getTeacherCoursesController
+);
+
+// #127. A course could be created and deleted and nothing else, so correcting
+// a typo in a title meant deleting it — and that cascade removes every
+// enrolment, payment, review, bookmark and uploaded video.
+//
+// JSON, not multipart: none of the editable fields is a file, so there is no
+// Multer here and none of the identity trouble that comes with it. The GET
+// exists because the educator list endpoint deliberately projects section text
+// away (#94), so an edit form has nowhere else to read it from.
+router.get(
+  "/editcourse/:courseid",
+  authMiddleware,
+  checkRole(["teacher", "admin"]),
+  getCourseForEditController,
+);
+
+router.put(
+  "/editcourse/:courseid",
+  authMiddleware,
+  checkRole(["teacher", "admin"]),
+  updateCourseController,
 );
 
 router.delete(
