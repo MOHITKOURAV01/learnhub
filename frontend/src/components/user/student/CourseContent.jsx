@@ -14,6 +14,7 @@ import NavBar from '../../common/NavBar';
 import Toast from '../../common/Toast';
 import BookmarkButton from '../../bookmarks/BookmarkButton';
 import CourseReviews from '../../reviews/CourseReviews';
+import usePlaybackToken from '../../../hooks/usePlaybackToken';
 import '../../../styles/course-player.css';
 import {
   PROGRESS_STATES,
@@ -22,7 +23,6 @@ import {
   progressState,
   readCertificateDate,
   readIsComplete,
-  readPlaybackToken,
   readProgress,
   readSections,
   sectionAddress,
@@ -65,7 +65,20 @@ const CourseContent = () => {
   // Minted by /coursecontent once it has confirmed this viewer is enrolled
   // (#76). Scoped to this course, good for half an hour, and the only thing
   // that opens the video route now that /uploads is not served.
-  const [playbackToken, setPlaybackToken] = useState('');
+  //
+  // #124. It used to be plain useState, set once when the page loaded and
+  // never touched again. Half an hour later the stream route began refusing
+  // it, and because a <video> element's request does not pass through the
+  // axios interceptor the 401 was silent: an empty player and an empty
+  // console. The hook renews it ahead of the deadline and again at the moment
+  // a section is played, which is the check that survives a throttled timer in
+  // a background tab.
+  const {
+    token: playbackToken,
+    error: playbackError,
+    adopt: adoptPlaybackToken,
+    ensureFresh: ensureFreshPlaybackToken,
+  } = usePlaybackToken(courseId);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -83,8 +96,11 @@ const CourseContent = () => {
     setIsComplete(readIsComplete(payload));
     setCertificateDate(readCertificateDate(payload));
     setServerTitle(payload?.courseTitle || '');
-    setPlaybackToken(readPlaybackToken(payload));
-  }, []);
+    // This response already carries a freshly minted token and its expiry, so
+    // it is adopted rather than followed by a second request for the same
+    // thing.
+    adoptPlaybackToken(payload);
+  }, [adoptPlaybackToken]);
 
   const getCourseContent = useCallback(async () => {
     setLoading(true);
@@ -115,13 +131,18 @@ const CourseContent = () => {
     getCourseContent();
   }, [getCourseContent]);
 
-  const playVideo = (section) => {
+  // Awaited before the player is pointed at the file (#124). A viewer who
+  // opened the page two hours ago and is only now clicking a section gets a
+  // token that works, instead of a silent 401 on the stream.
+  const playVideo = async (section) => {
     // The guarded stream URL the API returned for this section. The component
     // used to build `${host}/uploads/${path}` itself, which stopped working
     // when the upload directory was taken off the static handler (#76).
     const { streamUrl } = section;
 
     if (!streamUrl) return;
+
+    await ensureFreshPlaybackToken();
 
     setActiveVideo({
       streamUrl,
@@ -334,6 +355,13 @@ const CourseContent = () => {
         </div>
 
         <div className="course-video w-50">
+          {/* The failure this replaces had no symptom at all. If access
+              cannot be renewed, say so. */}
+          {playbackError ? (
+            <p className="course-state course-state-error" role="alert">
+              {playbackError}
+            </p>
+          ) : null}
           {activeVideo && playbackToken ? (
             <ReactPlayer
               url={resolveCourseVideoUrl(activeVideo.streamUrl, playbackToken)}
