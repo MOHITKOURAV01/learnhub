@@ -7,13 +7,14 @@
 // query the server already understands, and reads the pagination block it
 // already returns. Kept free of React so it can be tested on its own.
 
+// The free/paid rule moved to lib/coursePricing (#114), which is the mirror
+// of backend/utils/coursePricing and the single answer the card label, the
+// Enroll branch, checkout and the wishlist all read. It is re-exported here
+// because this module is where AllCourses already imports it from.
+export { isPaidCourse, coursePriceLabel } from './coursePricing.js';
+
 export const PAGE_SIZE = 12;
 
-// Mirrors FREE_PRICE_PATTERN in backend/utils/courseListing.js. The old client
-// test was `/\d/.test(course.C_price)`, which called a course priced
-// "Free for the first 100" paid while the server called it free, so the two
-// halves of the same filter disagreed.
-const FREE_PRICE_PATTERN = /^\s*(?:free|0(?:\.0+)?)\s*$/i;
 
 export const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest first' },
@@ -22,18 +23,6 @@ export const SORT_OPTIONS = [
 ];
 
 const SORT_VALUES = new Set(SORT_OPTIONS.map((option) => option.value));
-
-/**
- * @param {object} course
- * @returns {boolean} whether the course costs money, by the server's rule
- */
-export const isPaidCourse = (course) => {
-  const price = course?.C_price;
-
-  if (price === undefined || price === null) return false;
-
-  return !FREE_PRICE_PATTERN.test(String(price));
-};
 
 /**
  * Turns the toolbar state into the query the API accepts.

@@ -1,4 +1,12 @@
-const FREE_PRICE_PATTERN = /^\s*(?:free|0(?:\.0+)?)\s*$/i;
+// The rule itself lives in utils/coursePricing, which is the single answer
+// to "does this course cost money" that checkout, the wishlist and the
+// browser now share (#114). Re-exported from here because this module is
+// where several call sites already import it from.
+const {
+  FREE_PRICE_PATTERN,
+  freePriceFilterClauses,
+  paidPriceFilterClauses,
+} = require("./coursePricing");
 
 function firstQueryValue(value) {
   if (Array.isArray(value)) {
@@ -54,16 +62,16 @@ function buildCourseFilter(query = {}) {
 
   const priceType = normalizeText(query.priceType, 20).toLowerCase();
 
+  // A blank or absent price is free, and a regex cannot match a field that
+  // does not exist, so neither side of this is a single $regex any more. The
+  // clauses come from coursePricing so the filter and the predicate cannot
+  // drift: filtering to Free has to return exactly the courses whose cards
+  // say Free.
   if (priceType === "free") {
-    filter.C_price = {
-      $regex: FREE_PRICE_PATTERN,
-    };
+    // $or, not a $regex on C_price, so a search term's $or is not clobbered.
+    filter.$and = [{ $or: freePriceFilterClauses() }];
   } else if (priceType === "paid") {
-    filter.$and = [
-      { C_price: { $exists: true } },
-      { C_price: { $ne: "" } },
-      { C_price: { $not: FREE_PRICE_PATTERN } },
-    ];
+    filter.$and = paidPriceFilterClauses();
   }
 
   return filter;

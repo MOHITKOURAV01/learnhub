@@ -12,8 +12,13 @@ import useRatingSummaries from "../../hooks/useRatingSummaries";
 import {
   SORT_OPTIONS,
   describeRange,
-  isPaidCourse,
 } from "../../lib/catalogQuery";
+import {
+  coursePriceLabel,
+  isPaidCourse,
+  readEnrollmentError,
+  readEnrollmentFieldErrors,
+} from "../../lib/coursePricing";
 
 const paletteByCategory = [
   ["#f2c14e", "#e56b6f"],
@@ -68,6 +73,12 @@ const AllCourses = () => {
     cvvcode: "",
     expmonthyear: "",
   });
+  // A rejected enrolment used to be one alert() saying "Please try again",
+  // whatever went wrong. The server sends a sentence and a per-field map; both
+  // are rendered now, and the modal stays open so the learner can correct the
+  // field it names (#114).
+  const [enrollError, setEnrollError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // The search, the filter and the paging all happen on the server now. This
   // page used to fetch once with no query, receive the default first twelve
@@ -103,13 +114,24 @@ const AllCourses = () => {
       cvvcode: "",
       expmonthyear: "",
     });
+    setEnrollError("");
+    setFieldErrors({});
   };
 
   const handleChange = (event) => {
-    setCardDetails((current) => ({
-      ...current,
-      [event.target.name]: event.target.value,
-    }));
+    const { name, value } = event.target;
+
+    setCardDetails((current) => ({ ...current, [name]: value }));
+
+    // Clear the marker on a field as soon as it is edited, so a corrected
+    // input stops being flagged before the form is submitted again.
+    setFieldErrors((current) => {
+      if (!current[name]) return current;
+
+      const next = { ...current };
+      delete next[name];
+      return next;
+    });
   };
 
   const handleEnroll = (course) => {
@@ -118,11 +140,17 @@ const AllCourses = () => {
       return;
     }
 
+    // isPaidCourse and the server's isFreeCourse are the same rule now. While
+    // they were two rules a course priced "0.00" took this branch — no modal —
+    // and the server then rejected the request for carrying no card details,
+    // with no way back to the form (#114).
     if (!isPaidCourse(course)) {
       handleSubmit(course._id, course.C_title);
       return;
     }
 
+    setEnrollError("");
+    setFieldErrors({});
     setSelectedCourse(course);
   };
 
@@ -132,6 +160,9 @@ const AllCourses = () => {
   };
 
   const handleSubmit = async (courseId, fallbackTitle) => {
+    setEnrollError("");
+    setFieldErrors({});
+
     try {
       const res = await axiosInstance.post(
         `/api/user/enrolledcourse/${courseId}`,
@@ -152,7 +183,16 @@ const AllCourses = () => {
       reload();
     } catch (error) {
       console.error("Unable to enroll:", error);
-      alert("Enrollment could not be completed. Please try again.");
+
+      const message = readEnrollmentError(error);
+      setEnrollError(message);
+      setFieldErrors(readEnrollmentFieldErrors(error));
+
+      // A free course has no modal to show the message in, so it still needs
+      // the alert. A paid one keeps the form open with the message on it.
+      if (!selectedCourse) {
+        alert(message);
+      }
     }
   };
 
@@ -263,7 +303,7 @@ const AllCourses = () => {
                 <div className="course-card-footer">
                   <div>
                     <small>ACCESS</small>
-                    <strong>{isPaidCourse(course) ? course.C_price : "Free"}</strong>
+                    <strong>{coursePriceLabel(course)}</strong>
                   </div>
                   <div>
                     <small>LEARNERS</small>
@@ -340,8 +380,18 @@ const AllCourses = () => {
           <div className="payment-course-summary">
             <span>{selectedCourse?.C_categories || "Course"}</span>
             <strong>{selectedCourse?.C_educator}</strong>
-            <b>{selectedCourse?.C_price}</b>
+            <b>{coursePriceLabel(selectedCourse)}</b>
           </div>
+
+          {/* What the server actually said. `formatPaymentMessage` joins the
+              per-field errors into a sentence and both halves are on the 400
+              body; this component used to discard them and alert a fixed
+              string, which is what made a rejected enrolment unexplainable. */}
+          {enrollError ? (
+            <div className="payment-error" role="alert">
+              {enrollError}
+            </div>
+          ) : null}
 
           <Form
             onSubmit={(event) => {
@@ -357,8 +407,14 @@ const AllCourses = () => {
               onChange={handleChange}
               type="text"
               placeholder="Name on card"
+              aria-invalid={Boolean(fieldErrors.cardholdername)}
               required
             />
+            {fieldErrors.cardholdername ? (
+              <small className="payment-field-error">
+                {fieldErrors.cardholdername}
+              </small>
+            ) : null}
             <MDBInput
               className="mb-3"
               name="cardnumber"
@@ -369,8 +425,14 @@ const AllCourses = () => {
               maxLength="16"
               inputMode="numeric"
               placeholder="1234 5678 9012 3457"
+              aria-invalid={Boolean(fieldErrors.cardnumber)}
               required
             />
+            {fieldErrors.cardnumber ? (
+              <small className="payment-field-error">
+                {fieldErrors.cardnumber}
+              </small>
+            ) : null}
             <MDBRow className="mb-4">
               <MDBCol md="6">
                 <MDBInput
@@ -381,8 +443,14 @@ const AllCourses = () => {
                   label="Expiration"
                   type="text"
                   placeholder="MM/YYYY"
+                  aria-invalid={Boolean(fieldErrors.expmonthyear)}
                   required
                 />
+                {fieldErrors.expmonthyear ? (
+                  <small className="payment-field-error">
+                    {fieldErrors.expmonthyear}
+                  </small>
+                ) : null}
               </MDBCol>
               <MDBCol md="6">
                 <MDBInput
@@ -395,8 +463,14 @@ const AllCourses = () => {
                   inputMode="numeric"
                   maxLength="3"
                   placeholder="•••"
+                  aria-invalid={Boolean(fieldErrors.cvvcode)}
                   required
                 />
+                {fieldErrors.cvvcode ? (
+                  <small className="payment-field-error">
+                    {fieldErrors.cvvcode}
+                  </small>
+                ) : null}
               </MDBCol>
             </MDBRow>
 

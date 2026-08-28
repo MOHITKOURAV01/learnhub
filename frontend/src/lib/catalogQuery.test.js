@@ -47,16 +47,28 @@ test('a page below one is not sent', () => {
 // -- free vs paid ------------------------------------------------------------
 
 test('free is decided the same way the server decides it', () => {
-  // The old client rule was /\d/.test(price), so this one was "paid" on the
-  // client and "free" on the server.
+  // The rule lives in lib/coursePricing now and is re-exported from here.
+  // coursePricing.test.js holds the full table; these are the cases this
+  // module's own callers care about.
   assert.equal(isPaidCourse({ C_price: 'Free for the first 100' }), true);
   assert.equal(isPaidCourse({ C_price: 'free' }), false);
   assert.equal(isPaidCourse({ C_price: 'Free' }), false);
   assert.equal(isPaidCourse({ C_price: '0' }), false);
   assert.equal(isPaidCourse({ C_price: '0.00' }), false);
-  assert.equal(isPaidCourse({ C_price: '' }), true);
   assert.equal(isPaidCourse({ C_price: '499' }), true);
   assert.equal(isPaidCourse({}), false);
+});
+
+test('a blank price is free, which is a change (#114)', () => {
+  // This used to assert `true`. It was wrong, and inconsistent with the two
+  // lines above it: an absent price returned early as free while a blank
+  // string fell through to the pattern and came out paid. The card rendered
+  // "ACCESS:" followed by nothing and opened a payment form for a course the
+  // server records as `amount: "free"` and never charges for.
+  assert.equal(isPaidCourse({ C_price: '' }), false);
+  assert.equal(isPaidCourse({ C_price: '   ' }), false);
+  assert.equal(isPaidCourse({ C_price: null }), false);
+  assert.equal(isPaidCourse({ C_price: undefined }), false);
 });
 
 // -- reading the response ----------------------------------------------------
