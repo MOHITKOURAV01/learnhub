@@ -20,6 +20,13 @@ const {
 const {
   deleteCourseController,
 } = require("../controllers/courseDeletionController");
+// Beside the deletion controller deliberately: the two share their ownership
+// rule, and editing exists so that correcting a title no longer has to go
+// through deleting (#127).
+const {
+  getCourseForEditController,
+  updateCourseController,
+} = require("../controllers/courseUpdateController");
 const {
   completeSectionController,
 } = require("../controllers/progressController");
@@ -29,10 +36,6 @@ const {
 const {
   courseVideoController,
 } = require("../controllers/courseVideoController");
-const {
-  getCourseForEditController,
-  updateCourseController,
-} = require("../controllers/courseUpdateController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
