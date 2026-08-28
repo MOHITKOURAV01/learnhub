@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Accordion, Modal } from 'react-bootstrap';
-import axiosInstance, { resolveMediaUrl } from '../../common/AxiosInstance';
+import axiosInstance, { resolveCourseVideoUrl } from '../../common/AxiosInstance';
 import ReactPlayer from 'react-player';
 import { UserContext } from '../../../App';
 import NavBar from '../../common/NavBar';
@@ -22,6 +22,10 @@ const CourseContent = () => {
    const [completedModule, setCompletedModule] = useState([]);
    const [showModal, setShowModal] = useState(false);
    const [certificate, setCertificate] = useState(null)
+   // Minted by /coursecontent once it has confirmed this viewer is enrolled.
+   // Scoped to this course, good for half an hour, and the only thing that
+   // opens the video route now that /uploads is not served.
+   const [playbackToken, setPlaybackToken] = useState('')
    // Extract sectionIds from completedModule
    const completedModuleIds = completedModule.map((item) => item.sectionId);
 
@@ -41,9 +45,8 @@ const CourseContent = () => {
          const res = await axiosInstance.get(`/api/user/coursecontent/${courseId}`);
          if (res.data.success) {
             setCourseContent(res.data.courseContent);
-            console.log(res.data.completeModule)
             setCompletedModule(res.data.completeModule)
-            // setCompletedModule(res.data.completeModule[0]?.progress);
+            setPlaybackToken(res.data.playbackToken || '')
             setCertificate(res.data.certficateData.updatedAt)
          }
       } catch (error) {
@@ -109,7 +112,10 @@ const CourseContent = () => {
                               {section.S_description}
                               {section.S_content && (
                                  <>
-                                    <Button color='success' className='mx-2' variant="text" size="small" onClick={() => playVideo(`${section.S_content.path.startsWith('/uploads') ? section.S_content.path : '/uploads/' + section.S_content.path.replace(/^\\|^\//, '')}`, index)}>
+                                    {/* The API returns the guarded stream URL
+                                        for the section; the component no
+                                        longer builds a path into /uploads. */}
+                                    <Button color='success' className='mx-2' variant="text" size="small" onClick={() => playVideo(section.S_content.streamUrl, index)}>
                                        Play Video
                                     </Button>
                                     {isSectionCompleted && !completedSections.includes(index) && (
@@ -134,9 +140,9 @@ const CourseContent = () => {
                </Accordion>
             </div>
             <div className="course-video w-50">
-               {currentVideo && (
+               {currentVideo && playbackToken && (
                   <ReactPlayer
-                     url={resolveMediaUrl(currentVideo)}
+                     url={resolveCourseVideoUrl(currentVideo, playbackToken)}
                      width='100%'
                      height='100%'
                      controls

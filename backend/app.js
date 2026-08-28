@@ -44,7 +44,12 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-app.use("/uploads", express.static(uploadsDir));
+// The upload directory is deliberately not served. It used to be
+// `app.use("/uploads", express.static(uploadsDir))`, which handed every course
+// video to anyone who asked for it — and the public catalogue endpoint
+// published the filenames, so no guessing was involved. Section videos are
+// served by GET /api/user/coursevideo/:courseid/:sectionIndex, which checks a
+// playback token minted only after the enrolment check in /coursecontent.
 
 app.use("/api/health", createHealthRouter());
 
