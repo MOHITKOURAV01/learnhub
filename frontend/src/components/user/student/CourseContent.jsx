@@ -349,6 +349,14 @@ const CourseContent = () => {
         </div>
       </div>
 
+      {/* On the page rather than inside the certificate modal. The modal only
+          opens behind a 100%-completion check, so a student nine sections into
+          ten was authorised by the API — which asks for enrolment and nothing
+          else — and had no way to leave a review (#136). */}
+      <section className="course-player-reviews">
+        <CourseReviews courseId={courseId} courseTitle={title} />
+      </section>
+
       <Modal
         size="lg"
         show={showModal}
@@ -390,8 +398,6 @@ const CourseContent = () => {
           >
             Download Certificate
           </Button>
-
-          <CourseReviews courseId={courseId} courseTitle={title} />
         </Modal.Body>
       </Modal>
 
