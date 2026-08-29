@@ -24,6 +24,11 @@
   --nav-font-family: "DM Sans", sans-serif;
   --nav-font-size: 1rem;
   --nav-font-weight: 600;
+  /* The palette had no error colour. A rejected enrolment had nowhere to be
+     rendered, so it was alerted instead (#114). */
+  --danger: #b3261e;
+  --danger-soft: rgba(179, 38, 30, 0.08);
+  --danger-border: rgba(179, 38, 30, 0.32);
 }
 
 body.dark-mode {
@@ -38,6 +43,11 @@ body.dark-mode {
   --navbar-glow: rgba(0, 0, 0, 0.45);
   --navbar-border: rgba(255, 255, 255, 0.08);
   --surface-dark: #18191a;
+  /* #b3261e on #121212 is unreadable. Lightened rather than left to the
+     fallback, like every other token in this block. */
+  --danger: #ff9a90;
+  --danger-soft: rgba(255, 154, 144, 0.12);
+  --danger-border: rgba(255, 154, 144, 0.34);
 }
 
 * {
@@ -1097,6 +1107,29 @@ body.dark-mode .catalog-pager-gap {
   grid-column: 2;
   grid-row: 1 / span 2;
   align-self: center;
+}
+
+/* A rejected enrolment used to be an alert() saying "Please try again",
+   whatever the server had actually objected to. The response carries a
+   sentence and a per-field map (#114); this is where the sentence goes. */
+.payment-error {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+/* The field the sentence is about, marked where it can be corrected. Sits
+   directly under its input, and clears as soon as that input is edited. */
+.payment-field-error {
+  display: block;
+  margin: -8px 0 12px;
+  color: var(--danger);
+  font-size: 0.78rem;
 }
 
 .payment-actions {

@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const bcrypt = require("bcryptjs");
 
 const {
   RESEND_COOLDOWN_MS,
@@ -130,7 +131,11 @@ test("a timestamp in the future does not lock the address out indefinitely", () 
 
 // -- issuing -----------------------------------------------------------------
 
-test("issuing writes the code, the expiry and the send time, then mails it", async () => {
+test("issuing writes the hash, the expiry and the send time, then mails the code", async () => {
+  // This used to assert `user.otp` matched /^\d{6}$/ — the code itself was
+  // what got written. #95 made the stored value a bcrypt hash, and this is the
+  // one place a verification code is issued, so both registration and the
+  // resend route are covered by what this asserts.
   const now = Date.UTC(2026, 7, 16, 12, 0, 0);
   const user = createUser();
   const { sendMail, sent } = createMailer();
@@ -139,13 +144,33 @@ test("issuing writes the code, the expiry and the send time, then mails it", asy
 
   assert.equal(result.sent, true);
   assert.equal(user.saved, 1);
-  assert.match(user.otp, /^\d{6}$/);
   assert.equal(user.otpExpiry.getTime(), now + 10 * 60 * 1000);
   assert.equal(user.otpLastSentAt.getTime(), now);
+  assert.equal(user.otpAttempts, 0);
 
+  // The mail carries a six-digit code.
   assert.equal(sent.length, 1);
   assert.equal(sent[0].to, "pending@example.com");
-  assert.ok(sent[0].text.includes(user.otp));
+  assert.match(result.otp, /^\d{6}$/);
+  assert.ok(sent[0].text.includes(result.otp));
+
+  // The database carries a bcrypt hash of it, and not the code.
+  assert.match(user.otp, /^\$2[aby]\$/);
+  assert.ok(!sent[0].text.includes(user.otp));
+  assert.equal(await bcrypt.compare(result.otp, user.otp), true);
+});
+
+test("two codes issued in a row do not produce the same stored value", async () => {
+  // bcrypt salts per call, so even the same code would hash differently. The
+  // point is that nothing about the stored value is guessable from another.
+  const first = createUser();
+  const second = createUser();
+  const { sendMail } = createMailer();
+
+  await issueVerificationOtp({ user: first, sendMail, nowMs: Date.UTC(2026, 7, 16, 12, 0, 0) });
+  await issueVerificationOtp({ user: second, sendMail, nowMs: Date.UTC(2026, 7, 16, 12, 0, 0) });
+
+  assert.notEqual(first.otp, second.otp);
 });
 
 test("issuing inside the cooldown neither writes nor mails", async () => {

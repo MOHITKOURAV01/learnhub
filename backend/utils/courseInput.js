@@ -13,7 +13,10 @@
 // Identity is resolved from `req.user` here instead. That object is set by the
 // same middleware, is not part of the body, and is untouched by Multer.
 
-const { FREE_PRICE_PATTERN } = require("./courseListing");
+const {
+  FREE_PRICE_LABEL,
+  normalizeCoursePrice,
+} = require("./coursePricing");
 
 const MAX_EDUCATOR_LENGTH = 100;
 const MAX_TITLE_LENGTH = 120;
@@ -21,9 +24,6 @@ const MAX_CATEGORY_LENGTH = 80;
 const MAX_DESCRIPTION_LENGTH = 5000;
 const MAX_SECTION_TITLE_LENGTH = 150;
 const MAX_SECTION_DESCRIPTION_LENGTH = 2000;
-const MAX_PRICE_LENGTH = 40;
-
-const FREE_PRICE_LABEL = "free";
 
 /**
  * A repeated multipart field arrives as an array. Everything that expects a
@@ -62,25 +62,6 @@ function resolveAuthor(user = {}) {
     userId: asTrimmedString(user?._id ?? user?.id),
     name: asTrimmedString(user?.name),
   };
-}
-
-/**
- * Normalises the free-form price field.
- *
- * `C_price` is a String on the course schema and the old controller wrote
- * `C_price == 0 ? "free" : C_price`, which relies on `==` coercion and leaves
- * `""`, `"0.00"` and `"Free"` all stored differently. The catalogue's free/paid
- * filter matches on FREE_PRICE_PATTERN, so the same rule is applied on write
- * and the two agree.
- */
-function normalizeCoursePrice(value) {
-  const price = asTrimmedString(value);
-
-  if (!price || FREE_PRICE_PATTERN.test(price)) {
-    return FREE_PRICE_LABEL;
-  }
-
-  return price.slice(0, MAX_PRICE_LENGTH);
 }
 
 function requireText(errors, field, value, label, maxLength) {
@@ -204,7 +185,9 @@ function validateCourseSubmission({ body = {}, files = [], user = {} } = {}) {
       C_title: title,
       C_categories: categories,
       C_description: description,
-      C_price: normalizeCoursePrice(body.C_price),
+      // asTrimmedString first: a repeated multipart field arrives as an
+      // array, and the price rule takes a value rather than a form field.
+      C_price: normalizeCoursePrice(asTrimmedString(body.C_price)),
       sections: buildSections(uploadedFiles, body),
     },
   };

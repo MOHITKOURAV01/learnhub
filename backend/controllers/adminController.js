@@ -33,8 +33,10 @@ const SENSITIVE_USER_FIELDS = [
   "password",
   "otp",
   "otpExpiry",
+  "otpAttempts",
   "resetToken",
   "resetTokenExpiry",
+  "resetTokenAttempts",
 ];
 
 const PUBLIC_USER_PROJECTION = SENSITIVE_USER_FIELDS.map(
@@ -167,7 +169,11 @@ const adminResetPasswordController = async (req, res) => {
     const hashed = await bcrypt.hash(newPassword, 10);
     const user = await userSchema.findByIdAndUpdate(userid, {
       password: hashed,
-      $unset: { resetToken: "", resetTokenExpiry: "" },
+      $unset: {
+        resetToken: "",
+        resetTokenExpiry: "",
+        resetTokenAttempts: "",
+      },
     });
 
     if (!user) {

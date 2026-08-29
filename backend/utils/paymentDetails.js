@@ -7,18 +7,23 @@
 // This module reduces whatever the checkout form posts to a summary that is
 // safe to keep: the cardholder name, the last four digits, and the expiry.
 
-const FREE_PRICE_VALUES = new Set(["", "0", "free"]);
+const { isFreePrice } = require("./coursePricing");
 
 const digitsOnly = (value) => String(value ?? "").replace(/\D/g, "");
 
 /**
  * True when a course does not require payment.
  *
- * C_price is a free-form string on the course schema, and courseCreation
- * writes the literal "free" when the price is 0, so both shapes appear.
+ * Was its own rule — `new Set(["", "0", "free"])` — which called "0.00" a paid
+ * course while the catalogue called it free. The catalogue is what the learner
+ * sees, so the Enroll button skipped the payment modal and this then rejected
+ * the resulting request for having no card details. The course could not be
+ * enrolled in by any route (#114).
+ *
+ * Delegates now. This is the gate that decides whether money is asked for, so
+ * it is the one that must not have an opinion of its own.
  */
-const isFreeCourse = (price) =>
-  FREE_PRICE_VALUES.has(String(price ?? "").trim().toLowerCase());
+const isFreeCourse = (price) => isFreePrice(price);
 
 /**
  * Extracts the last four digits of a card number.

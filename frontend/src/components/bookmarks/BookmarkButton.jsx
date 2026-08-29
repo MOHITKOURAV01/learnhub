@@ -1,7 +1,16 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBookmarks } from "../../context/BookmarksContext";
 import "./Bookmarks.css";
+
+// #103. The star used to read its value out of whatever the provider happened
+// to have loaded — page one of the wishlist, and nothing else. A course saved
+// earlier than the fifty most recent rendered hollow, and clicking it sent an
+// add instead of a remove.
+//
+// The button now says which course it is showing, and the provider asks the
+// server about the ids on screen in one batched request. Registering is all
+// this component has to do; the batching lives in the provider.
 
 const BookmarkButton = ({
   courseId,
@@ -10,12 +19,24 @@ const BookmarkButton = ({
   onChange,
 }) => {
   const navigate = useNavigate();
-  const { isBookmarked, toggleBookmark, isAuthenticated, enabled } =
-    useBookmarks();
+  const {
+    isBookmarked,
+    toggleBookmark,
+    trackCourses,
+    isAuthenticated,
+    enabled,
+  } = useBookmarks();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const bookmarked = isBookmarked(courseId);
+
+  // Registering the id is what fills the star in (#103). `trackCourses` is a
+  // no-op for a session without a wishlist, so the effect stays unconditional
+  // and the early return below stays after every hook.
+  useEffect(() => {
+    trackCourses(courseId);
+  }, [courseId, trackCourses]);
 
   // A signed-in account without a wishlist is not offered the control. The
   // catalogue is reachable by an admin through the dashboard's Courses panel,
