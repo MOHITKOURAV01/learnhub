@@ -27,6 +27,12 @@ import {
   readSections,
   sectionAddress,
 } from '../../../lib/courseProgress';
+import {
+  CERTIFICATE_FILENAME,
+  RENDER_SCALE,
+  computeCertificateLayout,
+  readImageFormat,
+} from '../../../lib/certificatePdf';
 
 // #93. Three things were wrong here and they compounded:
 //
@@ -74,6 +80,10 @@ const CourseContent = () => {
 
   const [activeVideo, setActiveVideo] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  // Rasterising the certificate takes a noticeable moment, and the button used
+  // to give no sign of it — which invited a second click and a second render of
+  // the same node (#134).
+  const [downloading, setDownloading] = useState(false);
 
   const dismissToast = useCallback(() => setToast(EMPTY_TOAST), []);
 
@@ -178,17 +188,66 @@ const CourseContent = () => {
     }
   };
 
-  const downloadPdfDocument = (rootElementId) => {
+  // The placement is computed from the canvas rather than hardcoded. The old
+  // call passed neither a width nor a height, so jsPDF read the bitmap's pixel
+  // dimensions and used them as millimetres — a ~700 mm image on a 210 mm page
+  // — and the x = -35 beside it was an attempt to centre that overflow by hand
+  // (#134).
+  const downloadPdfDocument = async (rootElementId) => {
+    if (downloading) return;
+
     const input = document.getElementById(rootElementId);
 
-    if (!input) return;
+    if (!input) {
+      setToast({
+        message: 'The certificate is not ready yet. Please try again.',
+        type: 'error',
+      });
+      return;
+    }
 
-    html2canvas(input).then((canvas) => {
+    setDownloading(true);
+
+    try {
+      // Pinned, rather than html2canvas's default of window.devicePixelRatio,
+      // so the PDF does not depend on the display it was generated on.
+      const canvas = await html2canvas(input, {
+        scale: RENDER_SCALE,
+        backgroundColor: '#ffffff',
+      });
+
+      const layout = computeCertificateLayout(canvas);
+
+      if (!layout) {
+        throw new Error('The certificate produced an empty canvas');
+      }
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF();
-      pdf.addImage(imgData, 'JPEG', -35, 10);
-      pdf.save('download-certificate.pdf');
-    });
+
+      pdf.addImage(
+        imgData,
+        // Read off the data URI. The old call declared JPEG for a PNG.
+        readImageFormat(imgData),
+        layout.x,
+        layout.y,
+        layout.width,
+        layout.height,
+      );
+      pdf.save(CERTIFICATE_FILENAME);
+
+      setToast({ message: 'Certificate downloaded.', type: 'success' });
+    } catch (error) {
+      // There was no catch at all before, so a failed render was an unhandled
+      // rejection and a button that silently did nothing.
+      console.error('Unable to build the certificate PDF:', error);
+      setToast({
+        message: 'The certificate could not be downloaded. Please try again.',
+        type: 'error',
+      });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const state = progressState(progress);
@@ -386,9 +445,10 @@ const CourseContent = () => {
 
           <Button
             onClick={() => downloadPdfDocument('certificate-download')}
+            disabled={downloading}
             style={{ float: 'right', marginTop: 3 }}
           >
-            Download Certificate
+            {downloading ? 'Preparing…' : 'Download Certificate'}
           </Button>
 
           <CourseReviews courseId={courseId} courseTitle={title} />
