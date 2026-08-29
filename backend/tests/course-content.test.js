@@ -2,6 +2,12 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const mongoose = require("mongoose");
 
+// The controller mints a playback token once it has confirmed the enrolment
+// (#76), and signPlaybackToken refuses to sign without a secret. Set one before
+// the controller is required, the way the other suites here do, so a missing
+// secret cannot masquerade as a broken course-content response.
+process.env.JWT_SECRET = process.env.JWT_SECRET || "course-content-secret";
+
 const {
   createGetCourseContentController,
 } = require("../controllers/courseContentController");
@@ -193,6 +199,9 @@ test("returns the sections, the progress summary and the certificate date", asyn
   assert.equal(res.body.certificateDate, certificateDate);
   assert.equal(res.body.courseContent.length, 2);
   assert.equal(res.body.courseContent[0].completed, true);
+  // Minted here because this is the only place the enrolment is known (#76).
+  assert.equal(typeof res.body.playbackToken, "string");
+  assert.ok(res.body.playbackToken.length > 0);
 });
 
 test("certificateDate is null rather than the enrolment's last write", async () => {

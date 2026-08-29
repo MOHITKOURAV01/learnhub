@@ -1,7 +1,16 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBookmarks } from "../../context/BookmarksContext";
 import "./Bookmarks.css";
+
+// #103. The star used to read its value out of whatever the provider happened
+// to have loaded — page one of the wishlist, and nothing else. A course saved
+// earlier than the fifty most recent rendered hollow, and clicking it sent an
+// add instead of a remove.
+//
+// The button now says which course it is showing, and the provider asks the
+// server about the ids on screen in one batched request. Registering is all
+// this component has to do; the batching lives in the provider.
 
 const BookmarkButton = ({
   courseId,
@@ -10,12 +19,16 @@ const BookmarkButton = ({
   onChange,
 }) => {
   const navigate = useNavigate();
-  const { isBookmarked, toggleBookmark, isAuthenticated } =
+  const { isBookmarked, toggleBookmark, trackCourses, isAuthenticated } =
     useBookmarks();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const bookmarked = isBookmarked(courseId);
+
+  useEffect(() => {
+    trackCourses(courseId);
+  }, [courseId, trackCourses]);
 
   const handleClick = async (event) => {
     event.preventDefault();

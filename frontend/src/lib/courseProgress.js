@@ -80,13 +80,15 @@ export function readSection(section, index) {
   const source = section && typeof section === 'object' ? section : {};
   const content = source.S_content || null;
 
+  const streamUrl = readStreamUrl(content);
+
   return {
     index: Number.isInteger(source.index) ? source.index : index,
     sectionId: source.sectionId || null,
     title: source.S_title || `Section ${index + 1}`,
     description: source.S_description || '',
-    hasVideo: Boolean(source.hasVideo ?? (content && (content.path || content.filename))),
-    videoPath: readVideoPath(content),
+    hasVideo: Boolean(source.hasVideo ?? streamUrl),
+    streamUrl,
     completed: Boolean(source.completed),
   };
 }
@@ -105,25 +107,23 @@ export function readSections(payload) {
 }
 
 /**
- * A section video is stored either as `/uploads/<file>` or as a bare filename,
- * depending on how old the document is. The player used to normalise this
- * inline, in the middle of a JSX onClick, with a regex that also had to cope
- * with a Windows separator.
+ * The guarded stream URL the server minted for a section.
+ *
+ * The player used to build `${host}/uploads/${path}` out of the file's storage
+ * path, which is why every section video was reachable by anyone who could
+ * guess a filename. /uploads is no longer served: `withPlaybackUrls` replaces
+ * `S_content` with a single `streamUrl` pointing at the guarded video route,
+ * and that URL is only useful alongside the playback token (#76).
  *
  * @param {unknown} content `S_content`
- * @returns {string} a path suitable for resolveMediaUrl, or ''
+ * @returns {string} the stream URL, or '' when the section has no video
  */
-export function readVideoPath(content) {
+export function readStreamUrl(content) {
   if (!content || typeof content !== 'object') return '';
 
-  const raw = content.path || content.filename || '';
+  const raw = content.streamUrl;
 
-  if (typeof raw !== 'string' || !raw) return '';
-  if (/^https?:\/\//i.test(raw)) return raw;
-
-  const trimmed = raw.replace(/^[\\/]+/, '');
-
-  return trimmed.startsWith('uploads/') ? `/${trimmed}` : `/uploads/${trimmed}`;
+  return typeof raw === 'string' && raw ? raw : '';
 }
 
 /**
@@ -159,6 +159,22 @@ export function readIsComplete(payload) {
   const progress = readProgress(payload);
 
   return progress.total > 0 && progress.completed >= progress.total;
+}
+
+/**
+ * The short-lived token `/api/user/coursecontent/:courseid` mints once it has
+ * confirmed this viewer is enrolled. Scoped to the one course, and the only
+ * thing that opens the video route, so a section's `streamUrl` is inert
+ * without it (#76).
+ *
+ * @param {unknown} payload
+ * @returns {string}
+ */
+export function readPlaybackToken(payload) {
+  const raw =
+    payload && typeof payload === 'object' ? payload.playbackToken : null;
+
+  return typeof raw === 'string' && raw ? raw : '';
 }
 
 /**

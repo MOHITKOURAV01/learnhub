@@ -6,7 +6,9 @@ import ReactPlayer from 'react-player';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
-import axiosInstance, { resolveMediaUrl } from '../../common/AxiosInstance';
+import axiosInstance, {
+  resolveCourseVideoUrl,
+} from '../../common/AxiosInstance';
 import { UserContext } from '../../../App';
 import NavBar from '../../common/NavBar';
 import Toast from '../../common/Toast';
@@ -20,9 +22,9 @@ import {
   progressState,
   readCertificateDate,
   readIsComplete,
+  readPlaybackToken,
   readProgress,
   readSections,
-  readVideoPath,
   sectionAddress,
 } from '../../../lib/courseProgress';
 
@@ -60,6 +62,10 @@ const CourseContent = () => {
   const [isComplete, setIsComplete] = useState(false);
   const [certificateDate, setCertificateDate] = useState(null);
   const [serverTitle, setServerTitle] = useState('');
+  // Minted by /coursecontent once it has confirmed this viewer is enrolled
+  // (#76). Scoped to this course, good for half an hour, and the only thing
+  // that opens the video route now that /uploads is not served.
+  const [playbackToken, setPlaybackToken] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -77,6 +83,7 @@ const CourseContent = () => {
     setIsComplete(readIsComplete(payload));
     setCertificateDate(readCertificateDate(payload));
     setServerTitle(payload?.courseTitle || '');
+    setPlaybackToken(readPlaybackToken(payload));
   }, []);
 
   const getCourseContent = useCallback(async () => {
@@ -109,11 +116,18 @@ const CourseContent = () => {
   }, [getCourseContent]);
 
   const playVideo = (section) => {
-    const path = section.videoPath || readVideoPath(section.S_content);
+    // The guarded stream URL the API returned for this section. The component
+    // used to build `${host}/uploads/${path}` itself, which stopped working
+    // when the upload directory was taken off the static handler (#76).
+    const { streamUrl } = section;
 
-    if (!path) return;
+    if (!streamUrl) return;
 
-    setActiveVideo({ path, index: section.index, title: section.title });
+    setActiveVideo({
+      streamUrl,
+      index: section.index,
+      title: section.title,
+    });
   };
 
   const completeSection = async (section) => {
@@ -320,9 +334,9 @@ const CourseContent = () => {
         </div>
 
         <div className="course-video w-50">
-          {activeVideo ? (
+          {activeVideo && playbackToken ? (
             <ReactPlayer
-              url={resolveMediaUrl(activeVideo.path)}
+              url={resolveCourseVideoUrl(activeVideo.streamUrl, playbackToken)}
               width="100%"
               height="100%"
               controls

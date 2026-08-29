@@ -192,15 +192,44 @@ test("category and educator filters are exact and case-insensitive", () => {
 });
 
 test("free price filter supports free and zero values", () => {
-  const filter = buildCourseFilter({
-    priceType: "free",
-  });
+  // The clause used to be a single `C_price: { $regex }`, and this test read
+  // the pattern straight off it. A regex cannot match a field that does not
+  // exist, and an absent price is free (#114), so the free side is an $or over
+  // four clauses now. What it *selects* is unchanged for every value this test
+  // already covered — asserted through the pattern rather than the shape.
+  const filter = buildCourseFilter({ priceType: "free" });
+  const clauses = filter.$and[0].$or;
 
-  assert.equal(filter.C_price.$regex.test("free"), true);
-  assert.equal(filter.C_price.$regex.test("FREE"), true);
-  assert.equal(filter.C_price.$regex.test("0"), true);
-  assert.equal(filter.C_price.$regex.test("0.00"), true);
-  assert.equal(filter.C_price.$regex.test("29"), false);
+  const matches = (price) =>
+    clauses.some((clause) => clause.C_price?.$regex?.test(price));
+
+  assert.equal(matches("free"), true);
+  assert.equal(matches("FREE"), true);
+  assert.equal(matches("0"), true);
+  assert.equal(matches("0.00"), true);
+  assert.equal(matches("29"), false);
+});
+
+test("free price filter also selects a course with no price at all", () => {
+  // The half a regex could never express. `C_price` has no `required` on
+  // courseModel, so both shapes are reachable, and the catalogue used to call
+  // them paid while checkout enrolled them for free.
+  const clauses = buildCourseFilter({ priceType: "free" }).$and[0].$or;
+
+  assert.ok(clauses.some((clause) => clause.C_price?.$exists === false));
+  assert.ok(clauses.some((clause) => clause.C_price === null));
+});
+
+test("the free filter leaves a search term's $or alone", () => {
+  // Both used to want the top-level `$or`. Free is nested under `$and` so a
+  // search for "css" restricted to free courses is not silently widened to
+  // every free course.
+  const filter = buildCourseFilter({ priceType: "free", search: "css" });
+
+  assert.equal(filter.$or.length, 2);
+  assert.ok(filter.$or.every((clause) => clause.C_title || clause.C_description));
+  assert.equal(filter.$and.length, 1);
+  assert.ok(filter.$and[0].$or);
 });
 
 test("paid price filter excludes the free price pattern", () => {
@@ -308,7 +337,12 @@ test("controller preserves data array and adds pagination metadata", async () =>
   );
 
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(res.body.data, courses);
+  // The row still comes back under `data`, minus `sections` and plus a count.
+  // This route is unauthenticated and each section carried the storage path of
+  // its video (#76).
+  assert.deepEqual(res.body.data, [
+    { _id: "course-1", C_title: "Course One", sectionCount: 0 },
+  ]);
   assert.deepEqual(res.body.pagination, {
     page: 1,
     limit: 12,

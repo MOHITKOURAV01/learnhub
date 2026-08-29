@@ -11,7 +11,8 @@ import {
   readProgress,
   readSection,
   readSections,
-  readVideoPath,
+  readPlaybackToken,
+  readStreamUrl,
   sectionAddress,
 } from './courseProgress.js';
 
@@ -80,7 +81,7 @@ test('a section without a video is still completable', () => {
   );
 
   assert.equal(section.hasVideo, false);
-  assert.equal(section.videoPath, '');
+  assert.equal(section.streamUrl, '');
   assert.equal(section.title, 'Reading');
   // Nothing about hasVideo may gate this.
   assert.equal(section.completed, false);
@@ -97,18 +98,32 @@ test('readSections tolerates a response with no sections', () => {
   assert.equal(readSections({ courseContent: [{}, {}] }).length, 2);
 });
 
-test('video paths are normalised for every stored shape', () => {
-  assert.equal(readVideoPath({ path: '/uploads/a.mp4' }), '/uploads/a.mp4');
-  assert.equal(readVideoPath({ path: 'uploads/a.mp4' }), '/uploads/a.mp4');
-  assert.equal(readVideoPath({ path: 'a.mp4' }), '/uploads/a.mp4');
-  assert.equal(readVideoPath({ path: '\\a.mp4' }), '/uploads/a.mp4');
-  assert.equal(readVideoPath({ filename: 'a.mp4' }), '/uploads/a.mp4');
+test('a section reads the guarded stream URL the server sent', () => {
   assert.equal(
-    readVideoPath({ path: 'https://cdn.example.com/a.mp4' }),
-    'https://cdn.example.com/a.mp4',
+    readStreamUrl({ streamUrl: '/api/user/coursevideo/abc/0' }),
+    '/api/user/coursevideo/abc/0',
   );
-  assert.equal(readVideoPath(null), '');
-  assert.equal(readVideoPath({}), '');
+  assert.equal(readStreamUrl(null), '');
+  assert.equal(readStreamUrl({}), '');
+  // The storage path is no longer sent, and must not be resurrected as a URL:
+  // /uploads is not served any more (#76).
+  assert.equal(readStreamUrl({ path: '/uploads/a.mp4' }), '');
+  assert.equal(readStreamUrl({ streamUrl: 42 }), '');
+});
+
+test('a section with no video is still a readable section', () => {
+  const section = readSection({ S_title: 'Intro', S_content: null }, 0);
+
+  assert.equal(section.streamUrl, '');
+  assert.equal(section.hasVideo, false);
+  assert.equal(section.title, 'Intro');
+});
+
+test('readPlaybackToken takes the token off the payload', () => {
+  assert.equal(readPlaybackToken({ playbackToken: 'tok' }), 'tok');
+  assert.equal(readPlaybackToken({ playbackToken: '' }), '');
+  assert.equal(readPlaybackToken({}), '');
+  assert.equal(readPlaybackToken(null), '');
 });
 
 test('a section is addressed by its _id when it has one', () => {

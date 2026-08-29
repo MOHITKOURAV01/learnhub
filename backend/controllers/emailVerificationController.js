@@ -3,10 +3,9 @@ const userSchemaDefault = require("../schemas/userModel");
 
 const {
   buildVerificationEmail,
-  generateOtp,
-  otpExpiryFrom,
   secondsUntilResend,
 } = require("../utils/otpCodes");
+const { issueCredential } = require("../utils/otpCredentials");
 
 // An account that never completed verification used to be a dead end. The code
 // expires after ten minutes, registering again answers "User already exists",
@@ -51,17 +50,28 @@ async function issueVerificationOtp({
     return { sent: false, retryAfterSeconds };
   }
 
-  const otp = generateOtp();
+  // Only the bcrypt hash is persisted. The plaintext exists for the length of
+  // this function and goes to the mailbox; it is never written to the
+  // database, so a backup, a replica or a mongodump in a CI artefact is not a
+  // set of live credentials (#95).
+  //
+  // This is the one place a verification code is issued — registration and the
+  // resend route both come through here — so hashing it here is what closes
+  // both paths at once.
+  const credential = await issueCredential({ now: () => new Date(nowMs) });
 
-  user.otp = otp;
-  user.otpExpiry = otpExpiryFrom(nowMs);
+  user.otp = credential.hash;
+  user.otpExpiry = credential.expiresAt;
+  user.otpAttempts = 0;
   user.otpLastSentAt = new Date(nowMs);
 
   await user.save();
 
-  await sendMail({ to: user.email, ...buildVerificationEmail(otp) });
+  await sendMail({ to: user.email, ...buildVerificationEmail(credential.code) });
 
-  return { sent: true, retryAfterSeconds: 0, otp };
+  // The plaintext is returned for the caller that needs to mail it and for
+  // tests. It is deliberately not the value stored above.
+  return { sent: true, retryAfterSeconds: 0, otp: credential.code };
 }
 
 /**
@@ -90,7 +100,7 @@ function createResendOtpController({
 
     try {
       const user = await UserModel.findOne(lookupByEmail(email)).select(
-        "+otp +otpExpiry +otpLastSentAt",
+        "+otp +otpExpiry +otpAttempts +otpLastSentAt",
       );
 
       // Unknown address, or one that is already verified: same answer, no mail.

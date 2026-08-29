@@ -28,6 +28,9 @@ const {
 const {
   resendOtpController,
 } = require("../controllers/emailVerificationController");
+const {
+  courseVideoController,
+} = require("../controllers/courseVideoController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
@@ -128,6 +131,12 @@ router.get(
   authMiddleware,
   getCourseContentController
 );
+
+// No authMiddleware: a <video> element cannot send an Authorization header, so
+// this route authenticates on the short-lived, course-scoped playback token
+// that /coursecontent hands out after checking enrolment. It replaces the
+// public express.static handler on /uploads.
+router.get("/coursevideo/:courseid/:sectionIndex", courseVideoController);
 
 router.post("/completemodule", authMiddleware, completeSectionController);
 

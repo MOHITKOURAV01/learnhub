@@ -3,6 +3,8 @@ const {
   describeSections,
   isEnrollmentComplete,
 } = require("../utils/courseProgress");
+const { withPlaybackUrls } = require("../utils/publicCourse");
+const { signPlaybackToken } = require("../utils/playbackTokens");
 
 /**
  * GET /api/user/coursecontent/:courseid — the course player.
@@ -22,6 +24,11 @@ const {
  *
  * The progress summary is computed here, from the same helpers My Courses
  * uses, so the two pages cannot disagree about the same enrolment.
+ *
+ * The enrolment check below is also the only place that knows this viewer may
+ * watch this course, so it is where the playback token is minted (#76).
+ * /uploads is not served any more, and a section goes out with the guarded
+ * stream URL rather than the file's storage path.
  */
 
 function getRequestingUserId(req) {
@@ -88,7 +95,20 @@ function createGetCourseContentController({
       }
 
       const progress = buildProgressSummary(enrollment);
-      const sections = describeSections(course.sections, enrollment.progress);
+
+      // `describeSections` adds the position, the stable id and the completed
+      // flag; `withPlaybackUrls` swaps each `S_content` for its stream URL.
+      // Both key off the same positional index, so composing them leaves the
+      // added fields intact and the storage path out.
+      const sections = withPlaybackUrls(
+        describeSections(course.sections, enrollment.progress),
+        courseid,
+      );
+
+      const playbackToken = signPlaybackToken({
+        userId,
+        courseId: courseid,
+      });
 
       return res.status(200).send({
         success: true,
@@ -96,6 +116,7 @@ function createGetCourseContentController({
         // shapes. Anything still reading them keeps working; the fields below
         // are what the player uses now.
         courseContent: sections,
+        playbackToken,
         completeModule: Array.isArray(enrollment.progress)
           ? enrollment.progress
           : [],
