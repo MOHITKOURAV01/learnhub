@@ -6,6 +6,7 @@ import { UserContext } from "../../App";
 import CourseRatingBadge from "../reviews/CourseRatingBadge";
 import axiosInstance from "./AxiosInstance";
 import BookmarkButton from "../bookmarks/BookmarkButton";
+import Toast from "./Toast";
 import CatalogPager from "./CatalogPager";
 import useCourseCatalog from "../../hooks/useCourseCatalog";
 import useRatingSummaries from "../../hooks/useRatingSummaries";
@@ -13,12 +14,15 @@ import {
   SORT_OPTIONS,
   describeRange,
 } from "../../lib/catalogQuery";
+import { routeEnrollmentFeedback } from "../../lib/confirmDialog";
 import {
   coursePriceLabel,
   isPaidCourse,
   readEnrollmentError,
   readEnrollmentFieldErrors,
 } from "../../lib/coursePricing";
+
+const EMPTY_TOAST = { message: "", type: "info" };
 
 const paletteByCategory = [
   ["#f2c14e", "#e56b6f"],
@@ -154,6 +158,10 @@ const AllCourses = () => {
     setSelectedCourse(course);
   };
 
+  const [toast, setToast] = useState(EMPTY_TOAST);
+
+  const dismissToast = () => setToast(EMPTY_TOAST);
+
   const closePaymentModal = () => {
     setSelectedCourse(null);
     resetPaymentForm();
@@ -169,30 +177,47 @@ const AllCourses = () => {
         cardDetails,
       );
 
-      alert(res.data.message);
+      const feedback = routeEnrollmentFeedback({
+        success: true,
+        message: res.data.message,
+      });
+
       const targetCourse = res.data.course;
 
+      closePaymentModal();
+
+      // The alert used to sit above these two lines and halt the tab's event
+      // loop, so a successful enrolment looked like it had hung with the
+      // payment modal still open behind a system dialog. The toast is raised
+      // after the navigation instead, so it lands on the page the learner
+      // arrives at (#137).
       if (targetCourse) {
         navigate(`/courseSection/${targetCourse.id}/${targetCourse.Title}`);
       } else if (fallbackTitle) {
         navigate(`/courseSection/${courseId}/${fallbackTitle}`);
       }
 
-      closePaymentModal();
+      setToast(feedback.toast);
+
       // The learner count on the card is now stale.
       reload();
     } catch (error) {
       console.error("Unable to enroll:", error);
 
-      const message = readEnrollmentError(error);
-      setEnrollError(message);
-      setFieldErrors(readEnrollmentFieldErrors(error));
+      // A free course has no modal to put a message in, and used to get an
+      // alert — the only error path free enrolment had, gone the moment it was
+      // dismissed. Both go to the toast now; a paid course additionally keeps
+      // its inline copy, because the form is still open and the message
+      // belongs beside the fields.
+      const feedback = routeEnrollmentFeedback({
+        success: false,
+        message: readEnrollmentError(error),
+        hasOpenForm: Boolean(selectedCourse),
+      });
 
-      // A free course has no modal to show the message in, so it still needs
-      // the alert. A paid one keeps the form open with the message on it.
-      if (!selectedCourse) {
-        alert(message);
-      }
+      setEnrollError(feedback.inlineError);
+      setFieldErrors(readEnrollmentFieldErrors(error));
+      setToast(feedback.toast);
     }
   };
 
@@ -368,6 +393,8 @@ const AllCourses = () => {
           />
         </>
       )}
+
+      <Toast message={toast.message} type={toast.type} onClose={dismissToast} />
 
       <Modal show={Boolean(selectedCourse)} onHide={closePaymentModal} centered>
         <Modal.Header closeButton>
