@@ -571,6 +571,15 @@ People who showed up and made this better:
 </td>
 
 <td align="center" width="20%">
+<a href="https://github.com/karan-chaos">
+<img src="https://github.com/karan-chaos.png?size=160" width="80" height="80" alt="karan-chaos" style="border-radius:50%;border:2px solid #F97316;"/>
+<br/><b>karan-chaos</b>
+<br/>
+<img src="https://img.shields.io/badge/Contributor-F97316?style=flat-square&logo=github&logoColor=white"/>
+</a>
+</td>
+
+<td align="center" width="20%">
 <a href="https://github.com/anshika-guleria">
 <img src="https://github.com/anshika-guleria.png?size=160" width="80" height="80" alt="anshika-guleria" style="border-radius:50%;border:2px solid #4F46E5;"/>
 <br/><b>anshika-guleria</b>
@@ -596,7 +605,9 @@ People who showed up and made this better:
 <img src="https://img.shields.io/badge/Contributor-E11D48?style=flat-square&logo=github&logoColor=white"/>
 </a>
 </td>
+</tr>
 
+<tr>
 <td align="center" width="20%">
 <a href="https://github.com/Vachhani-Tapan">
 <img src="https://github.com/Vachhani-Tapan.png?size=160" width="80" height="80" alt="Vachhani-Tapan" style="border-radius:50%;border:2px solid #0F766E;"/>
@@ -606,9 +617,11 @@ People who showed up and made this better:
 </a>
 </td>
 </tr>
+
 </table>
 
 </div>
+
 
 Different people. Different backgrounds. Different skills. One shared project.
 
