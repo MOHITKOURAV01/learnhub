@@ -8,7 +8,6 @@ const {
   logoutController,
   postCourseController,
   getAllCoursesController,
-  sendCourseContentController,
   verifyOtpController,
   forgotPasswordController,
   resetPasswordController,
@@ -23,6 +22,9 @@ const {
 const {
   completeSectionController,
 } = require("../controllers/progressController");
+const {
+  getCourseContentController,
+} = require("../controllers/courseContentController");
 const {
   resendOtpController,
 } = require("../controllers/emailVerificationController");
@@ -127,7 +129,7 @@ router.post(
 router.get(
   "/coursecontent/:courseid",
   authMiddleware,
-  sendCourseContentController
+  getCourseContentController
 );
 
 // No authMiddleware: a <video> element cannot send an Authorization header, so
