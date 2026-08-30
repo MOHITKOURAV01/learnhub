@@ -15,6 +15,7 @@ import {
 } from "./context/BookmarksContext";
 
 import SavedCourses from "./components/bookmarks/SavedCourses";
+import AdminLogin from "./components/admin/AdminLogin";
 
 import { AuthProvider } from "./auth/AuthProvider";
 import { ThemeProvider } from "./theme/ThemeProvider";
@@ -55,6 +56,21 @@ function AppRoutes() {
             element={
               <PublicOnlyRoute>
                 <Register />
+              </PublicOnlyRoute>
+            }
+          />
+
+          {/* #125. The admin dashboard had no way in. POST /api/admin/login is
+              the only issuer of a token carrying role: "admin", and nothing
+              called it — no route, no form, no link — while #55 stopped any
+              registered account from holding the role. PublicOnlyRoute, like
+              /login, so a signed-in visitor is sent on rather than shown a
+              second sign-in form. */}
+          <Route
+            path="/admin/login"
+            element={
+              <PublicOnlyRoute>
+                <AdminLogin />
               </PublicOnlyRoute>
             }
           />
