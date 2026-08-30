@@ -64,6 +64,7 @@ app.get("/api/admin/dashboard", (req, res) => {
 app.use("/api/admin", require("./routers/adminRoutes"));
 app.use("/api/user", require("./routers/userRoutes"));
 app.use("/api/bookmarks", require("./routers/courseBookmarkRoutes"));
+app.use("/api/bookmark-folders", require("./routers/bookmarkFolderRoutes"));
 app.use("/api/reviews", require("./routers/courseReviewRoutes"));
 
 // Unmatched /api routes answer with the project's JSON envelope rather than
