@@ -4,7 +4,7 @@ const {
   isEnrollmentComplete,
 } = require("../utils/courseProgress");
 const { withPlaybackUrls } = require("../utils/publicCourse");
-const { signPlaybackToken } = require("../utils/playbackTokens");
+const { issuePlaybackToken } = require("../utils/playbackTokens");
 
 /**
  * GET /api/user/coursecontent/:courseid — the course player.
@@ -105,7 +105,12 @@ function createGetCourseContentController({
         courseid,
       );
 
-      const playbackToken = signPlaybackToken({
+      // The expiry travels with the token (#124). The player used to receive
+      // the token alone and had no way to know it had half an hour to live, so
+      // it held a refused credential in state until the page was reloaded. The
+      // deadline is what lets it renew at /playbacktoken before the token
+      // lapses; the lifetime itself is unchanged.
+      const playback = issuePlaybackToken({
         userId,
         courseId: courseid,
       });
@@ -116,7 +121,9 @@ function createGetCourseContentController({
         // shapes. Anything still reading them keeps working; the fields below
         // are what the player uses now.
         courseContent: sections,
-        playbackToken,
+        playbackToken: playback.token,
+        playbackTokenExpiresAt: playback.expiresAt,
+        playbackTokenExpiresIn: playback.expiresInSeconds,
         completeModule: Array.isArray(enrollment.progress)
           ? enrollment.progress
           : [],
