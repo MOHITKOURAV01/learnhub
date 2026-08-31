@@ -59,6 +59,11 @@ const {
 const {
   preserveAuthIdentity,
 } = require("../middlewares/preserveAuthIdentity");
+const {
+  changePasswordController,
+  getAccountController,
+  updateAccountController,
+} = require("../controllers/accountController");
 
 const router = express.Router();
 
@@ -150,6 +155,32 @@ router.get("/getallcoursesuser", authMiddleware, getEnrolledCoursesController);
 // Not rate limited either: it needs a valid token to reach, which is the
 // bound that matters, and throttling it would only make signing out fail.
 router.post("/logout", authMiddleware, logoutController);
+
+// #126. The account a signed-in user owns. There was no route that read or
+// wrote it: no /me, no /profile, no /change-password, so the only way to set a
+// new password was to sign out and complete the emailed reset flow — trading
+// "I hold a valid session for this account" for "I can read this mailbox",
+// which is the weaker claim of the two and the one #95 had to harden against
+// strangers.
+router.get("/account", authMiddleware, getAccountController);
+
+router.put("/account", authMiddleware, updateAccountController);
+
+// Rate limited like every other credential endpoint. It is guarded by a valid
+// token, which is the bound that matters, but it also takes a password and
+// compares it — and an endpoint that tells you whether a guess was right is
+// exactly the kind that should not accept unlimited requests.
+//
+// No failure throttle: that locks an email address, and locking the owner of a
+// live session out of the rest of the app because somebody mistyped their
+// current password twice would be worse than the thing it prevents. The
+// failures are recorded in the activity log instead.
+router.post(
+  "/change-password",
+  authMiddleware,
+  credentialRateLimiter("change-password"),
+  changePasswordController,
+);
 
 router.post(
   "/verify-otp",
