@@ -48,6 +48,7 @@ const {
 } = require("../controllers/teacherCoursesController");
 const {
   enrollCourseController,
+  withdrawEnrollmentController,
 } = require("../controllers/enrollmentController");
 const {
   createRateLimiter,
@@ -158,6 +159,20 @@ router.post(
   "/enrolledcourse/:courseid",
   authMiddleware,
   enrollCourseController
+);
+
+// #128. The counterpart that did not exist. An enrolment row was only ever
+// created; the only deletes are in the cascade, for a deleted course or a
+// deleted account. So a course joined by mistake stayed on My Courses for the
+// life of the account and kept inflating `course.enrolled`, which the
+// catalogue sorts "popular" by.
+//
+// No role check: whoever is enrolled may leave, and the account comes from the
+// token, so there is no way to spell a request that withdraws somebody else.
+router.delete(
+  "/enrolledcourse/:courseid",
+  authMiddleware,
+  withdrawEnrollmentController
 );
 
 router.get(
