@@ -5,6 +5,7 @@ import axiosInstance from '../../common/AxiosInstance';
 import CatalogPager from '../../common/CatalogPager';
 import Toast from '../../common/Toast';
 import useTeacherCourses from '../../../hooks/useTeacherCourses';
+import EditCourse from './EditCourse';
 import '../../../styles/teacher-dashboard.css';
 import {
   SORT_OPTIONS,
@@ -49,6 +50,10 @@ const TeacherHome = () => {
   const [expanded, setExpanded] = useState({});
   const [deletingId, setDeletingId] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
+  // #127. Delete was the only action on a card, and deleting a course takes
+  // every enrolment, payment, review, bookmark and uploaded video with it. It
+  // was also the only way to fix a typo in a title.
+  const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState(EMPTY_TOAST);
 
   const dismissToast = useCallback(() => setToast(EMPTY_TOAST), []);
@@ -249,6 +254,14 @@ const TeacherHome = () => {
 
                     <div className="teacher-course-actions">
                       <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={() => setEditing(course)}
+                        disabled={deletingId === course.id}
+                      >
+                        Edit
+                      </Button>
+                      <Button
                         variant="outline-danger"
                         size="sm"
                         onClick={() => setPendingDelete(course)}
@@ -275,6 +288,19 @@ const TeacherHome = () => {
           />
         </>
       )}
+
+      {editing ? (
+        <EditCourse
+          course={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(message) => {
+            setToast({ message, type: 'success' });
+            // The card renders the title, category and price that just
+            // changed, so the page is re-read rather than patched in place.
+            reload();
+          }}
+        />
+      ) : null}
 
       {pendingDelete ? (
         <div
