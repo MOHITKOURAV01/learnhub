@@ -14,6 +14,7 @@ import NavBar from '../../common/NavBar';
 import Toast from '../../common/Toast';
 import BookmarkButton from '../../bookmarks/BookmarkButton';
 import CourseReviews from '../../reviews/CourseReviews';
+import usePlaybackToken from '../../../hooks/usePlaybackToken';
 import '../../../styles/course-player.css';
 import {
   PROGRESS_STATES,
@@ -22,11 +23,16 @@ import {
   progressState,
   readCertificateDate,
   readIsComplete,
-  readPlaybackToken,
   readProgress,
   readSections,
   sectionAddress,
 } from '../../../lib/courseProgress';
+import {
+  CERTIFICATE_FILENAME,
+  RENDER_SCALE,
+  computeCertificateLayout,
+  readImageFormat,
+} from '../../../lib/certificatePdf';
 
 // #93. Three things were wrong here and they compounded:
 //
@@ -65,7 +71,20 @@ const CourseContent = () => {
   // Minted by /coursecontent once it has confirmed this viewer is enrolled
   // (#76). Scoped to this course, good for half an hour, and the only thing
   // that opens the video route now that /uploads is not served.
-  const [playbackToken, setPlaybackToken] = useState('');
+  //
+  // #124. It used to be plain useState, set once when the page loaded and
+  // never touched again. Half an hour later the stream route began refusing
+  // it, and because a <video> element's request does not pass through the
+  // axios interceptor the 401 was silent: an empty player and an empty
+  // console. The hook renews it ahead of the deadline and again at the moment
+  // a section is played, which is the check that survives a throttled timer in
+  // a background tab.
+  const {
+    token: playbackToken,
+    error: playbackError,
+    adopt: adoptPlaybackToken,
+    ensureFresh: ensureFreshPlaybackToken,
+  } = usePlaybackToken(courseId);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -74,6 +93,10 @@ const CourseContent = () => {
 
   const [activeVideo, setActiveVideo] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  // Rasterising the certificate takes a noticeable moment, and the button used
+  // to give no sign of it — which invited a second click and a second render of
+  // the same node (#134).
+  const [downloading, setDownloading] = useState(false);
 
   const dismissToast = useCallback(() => setToast(EMPTY_TOAST), []);
 
@@ -83,8 +106,11 @@ const CourseContent = () => {
     setIsComplete(readIsComplete(payload));
     setCertificateDate(readCertificateDate(payload));
     setServerTitle(payload?.courseTitle || '');
-    setPlaybackToken(readPlaybackToken(payload));
-  }, []);
+    // This response already carries a freshly minted token and its expiry, so
+    // it is adopted rather than followed by a second request for the same
+    // thing.
+    adoptPlaybackToken(payload);
+  }, [adoptPlaybackToken]);
 
   const getCourseContent = useCallback(async () => {
     setLoading(true);
@@ -115,13 +141,18 @@ const CourseContent = () => {
     getCourseContent();
   }, [getCourseContent]);
 
-  const playVideo = (section) => {
+  // Awaited before the player is pointed at the file (#124). A viewer who
+  // opened the page two hours ago and is only now clicking a section gets a
+  // token that works, instead of a silent 401 on the stream.
+  const playVideo = async (section) => {
     // The guarded stream URL the API returned for this section. The component
     // used to build `${host}/uploads/${path}` itself, which stopped working
     // when the upload directory was taken off the static handler (#76).
     const { streamUrl } = section;
 
     if (!streamUrl) return;
+
+    await ensureFreshPlaybackToken();
 
     setActiveVideo({
       streamUrl,
@@ -178,17 +209,66 @@ const CourseContent = () => {
     }
   };
 
-  const downloadPdfDocument = (rootElementId) => {
+  // The placement is computed from the canvas rather than hardcoded. The old
+  // call passed neither a width nor a height, so jsPDF read the bitmap's pixel
+  // dimensions and used them as millimetres — a ~700 mm image on a 210 mm page
+  // — and the x = -35 beside it was an attempt to centre that overflow by hand
+  // (#134).
+  const downloadPdfDocument = async (rootElementId) => {
+    if (downloading) return;
+
     const input = document.getElementById(rootElementId);
 
-    if (!input) return;
+    if (!input) {
+      setToast({
+        message: 'The certificate is not ready yet. Please try again.',
+        type: 'error',
+      });
+      return;
+    }
 
-    html2canvas(input).then((canvas) => {
+    setDownloading(true);
+
+    try {
+      // Pinned, rather than html2canvas's default of window.devicePixelRatio,
+      // so the PDF does not depend on the display it was generated on.
+      const canvas = await html2canvas(input, {
+        scale: RENDER_SCALE,
+        backgroundColor: '#ffffff',
+      });
+
+      const layout = computeCertificateLayout(canvas);
+
+      if (!layout) {
+        throw new Error('The certificate produced an empty canvas');
+      }
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF();
-      pdf.addImage(imgData, 'JPEG', -35, 10);
-      pdf.save('download-certificate.pdf');
-    });
+
+      pdf.addImage(
+        imgData,
+        // Read off the data URI. The old call declared JPEG for a PNG.
+        readImageFormat(imgData),
+        layout.x,
+        layout.y,
+        layout.width,
+        layout.height,
+      );
+      pdf.save(CERTIFICATE_FILENAME);
+
+      setToast({ message: 'Certificate downloaded.', type: 'success' });
+    } catch (error) {
+      // There was no catch at all before, so a failed render was an unhandled
+      // rejection and a button that silently did nothing.
+      console.error('Unable to build the certificate PDF:', error);
+      setToast({
+        message: 'The certificate could not be downloaded. Please try again.',
+        type: 'error',
+      });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const state = progressState(progress);
@@ -334,6 +414,13 @@ const CourseContent = () => {
         </div>
 
         <div className="course-video w-50">
+          {/* The failure this replaces had no symptom at all. If access
+              cannot be renewed, say so. */}
+          {playbackError ? (
+            <p className="course-state course-state-error" role="alert">
+              {playbackError}
+            </p>
+          ) : null}
           {activeVideo && playbackToken ? (
             <ReactPlayer
               url={resolveCourseVideoUrl(activeVideo.streamUrl, playbackToken)}
@@ -348,6 +435,14 @@ const CourseContent = () => {
           )}
         </div>
       </div>
+
+      {/* On the page rather than inside the certificate modal. The modal only
+          opens behind a 100%-completion check, so a student nine sections into
+          ten was authorised by the API — which asks for enrolment and nothing
+          else — and had no way to leave a review (#136). */}
+      <section className="course-player-reviews">
+        <CourseReviews courseId={courseId} courseTitle={title} />
+      </section>
 
       <Modal
         size="lg"
@@ -386,12 +481,11 @@ const CourseContent = () => {
 
           <Button
             onClick={() => downloadPdfDocument('certificate-download')}
+            disabled={downloading}
             style={{ float: 'right', marginTop: 3 }}
           >
-            Download Certificate
+            {downloading ? 'Preparing…' : 'Download Certificate'}
           </Button>
-
-          <CourseReviews courseId={courseId} courseTitle={title} />
         </Modal.Body>
       </Modal>
 

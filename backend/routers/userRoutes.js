@@ -38,6 +38,9 @@ const {
 const {
   courseVideoController,
 } = require("../controllers/courseVideoController");
+const {
+  playbackTokenController,
+} = require("../controllers/playbackAccessController");
 
 const checkRole = require("../middlewares/roleMiddleware");
 const {
@@ -179,6 +182,22 @@ router.get(
   "/coursecontent/:courseid",
   authMiddleware,
   getCourseContentController
+);
+
+// #124. Renews the playback token without re-fetching the whole course.
+//
+// The token is deliberately short-lived, and nothing renewed it: the player
+// received one when it mounted and was still holding it half an hour later,
+// when the stream route began refusing it. The <video> element's 401 does not
+// pass through the axios interceptor, so the failure was silent.
+//
+// Authenticated and enrolment-checked, exactly like /coursecontent — this is
+// the same claim, asked again, so an enrolment that has since been removed
+// does not get a fresh half hour.
+router.get(
+  "/playbacktoken/:courseid",
+  authMiddleware,
+  playbackTokenController,
 );
 
 // No authMiddleware: a <video> element cannot send an Authorization header, so

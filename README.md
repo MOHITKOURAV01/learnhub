@@ -52,7 +52,21 @@ For students, teachers, developers, and contributors. Real use cases. Real probl
 
 <br/>
 
-## 🏗️ How It Works
+## Part of Open Source Programs 💡
+
+<div align="center">
+
+<a href="https://www.summerofcode.xyz/">
+  <img src="https://github.com/udaycodespace/learnhub/blob/main/assets/ECSoC26.webp" alt="ECSoC '26" width="250"/>
+</a>
+
+### ECSoC '26
+
+**Duration:** July 1, 2026 – August 31, 2026
+
+</div>
+
+## ⚙️ How It Works
 
 ### The Student Journey
 
