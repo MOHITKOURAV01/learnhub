@@ -4,6 +4,7 @@ import { MDBCol, MDBInput, MDBRow } from "mdb-react-ui-kit";
 import { Link, useNavigate } from "react-router-dom";
 import { UserContext } from "../../App";
 import CourseRatingBadge from "../reviews/CourseRatingBadge";
+import CourseReviews from "../reviews/CourseReviews";
 import axiosInstance from "./AxiosInstance";
 import BookmarkButton from "../bookmarks/BookmarkButton";
 import CatalogPager from "./CatalogPager";
@@ -154,6 +155,22 @@ const AllCourses = () => {
     setSelectedCourse(course);
   };
 
+  // The course whose reviews are open. Every card advertised a star average
+  // and a count and there was no route from either to a review — the only
+  // <CourseReviews> in the app was inside the course player's certificate
+  // modal, which opens at 100% completion (#136).
+  const [reviewsCourse, setReviewsCourse] = useState(null);
+
+  const openReviews = (courseId) => {
+    const course = courses.find(
+      (entry) => String(entry._id) === String(courseId),
+    );
+
+    if (course) setReviewsCourse(course);
+  };
+
+  const closeReviews = () => setReviewsCourse(null);
+
   const closePaymentModal = () => {
     setSelectedCourse(null);
     resetPaymentForm();
@@ -288,7 +305,9 @@ const AllCourses = () => {
                 <div className="course-instructor">
                   <CourseRatingBadge
                     courseId={course._id}
+                    courseTitle={course.C_title}
                     summary={summaries.get(String(course._id))}
+                    onOpen={openReviews}
                     compact
                   />
                   <span className="instructor-avatar" aria-hidden="true">
@@ -368,6 +387,32 @@ const AllCourses = () => {
           />
         </>
       )}
+
+      {/* Readable without an account: GET /api/reviews/:courseId is public and
+          had no caller in the frontend at all before this. */}
+      <Modal
+        show={Boolean(reviewsCourse)}
+        onHide={closeReviews}
+        size="lg"
+        scrollable
+        centered
+        aria-labelledby="catalog-reviews-title"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title id="catalog-reviews-title">
+            Reviews · {reviewsCourse?.C_title}
+          </Modal.Title>
+        </Modal.Header>
+
+        <Modal.Body>
+          {reviewsCourse ? (
+            <CourseReviews
+              courseId={reviewsCourse._id}
+              courseTitle={reviewsCourse.C_title}
+            />
+          ) : null}
+        </Modal.Body>
+      </Modal>
 
       <Modal show={Boolean(selectedCourse)} onHide={closePaymentModal} centered>
         <Modal.Header closeButton>
